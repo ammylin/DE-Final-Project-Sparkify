@@ -149,20 +149,9 @@ It can show:
 - Skip rate by genre  
 - Regression insight plots  
 
-### **Option 2: Notebook-based visualizations**
-Simpler, but Streamlit better matches the “additional components” requirement.
-
 ---
 
-# 3. Mapping to the Course Rubric
 
-## ✅ Project Repository & Collaboration
-- Repo name: `spotify-data-engineering-pipeline`
-- Branches: `main`, `dev`, `feature/ingestion`, `feature/orchestration`, etc.
-- README includes:
-  - architecture diagram  
-  - setup instructions  
-  - team roles  
 
 ---
 
