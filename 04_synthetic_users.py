@@ -5,7 +5,7 @@ Each user includes:
 - A unique user ID
 - Age
 - Country
-- Favorite genres with associated weights reflecting their music preferences.  
+- Favorite genres with associated weights reflecting their music preferences.
 - Generates a CSV file of synthetic users for use in simulating listening events.
 """
 import numpy as np
@@ -15,24 +15,30 @@ import json
 import argparse
 import ast
 
-def generate_users(
-    n_users: int,
-    songs_csv_path: str,
-    output_path: str,
-    seed: int = 42
-):
+
+def generate_users(n_users: int, songs_csv_path: str, output_path: str, seed: int = 42):
     np.random.seed(seed)
 
     # Load songs and parse genres
     songs = pd.read_csv(songs_csv_path)
-    songs['track_genre_list'] = songs['track_genre'].apply(ast.literal_eval)
+    songs["track_genre_list"] = songs["track_genre"].apply(ast.literal_eval)
 
     # Get all unique genres
-    all_genres = sorted(list({g for sublist in songs['track_genre_list'] for g in sublist}))
+    all_genres = sorted(
+        list({g for sublist in songs["track_genre_list"] for g in sublist})
+    )
 
     countries = [
-        "USA", "Canada", "UK", "Germany", "France", 
-        "Mexico", "Brazil", "India", "Japan", "Australia"
+        "USA",
+        "Canada",
+        "UK",
+        "Germany",
+        "France",
+        "Mexico",
+        "Brazil",
+        "India",
+        "Japan",
+        "Australia",
     ]
 
     users = []
@@ -44,7 +50,9 @@ def generate_users(
 
         # Step 1: Choose 1–3 favorite genres
         num_favs = np.random.choice([1, 2, 3], p=[0.6, 0.3, 0.1])
-        favorite_genres = list(np.random.choice(all_genres, size=num_favs, replace=False))
+        favorite_genres = list(
+            np.random.choice(all_genres, size=num_favs, replace=False)
+        )
 
         # Step 2–4: Assign weights (favorite genres high, others low)
         weights = {}
@@ -61,7 +69,7 @@ def generate_users(
         extra_genres = np.random.choice(
             [g for g in all_genres if g not in favorite_genres],
             size=num_extras,
-            replace=False
+            replace=False,
         )
         for g in extra_genres:
             weights[g] = np.random.uniform(0.01, 0.05)
@@ -70,25 +78,28 @@ def generate_users(
         total = sum(weights.values())
         weights = {g: round(w / total, 4) for g, w in weights.items()}
 
-        users.append({
-            "user_id": user_id,
-            "age": age,
-            "country": country,
-            # store as JSON list for favorite genres
-            "favorite_genres": json.dumps(favorite_genres),
-            # store as JSON dict for weights
-            "genre_weights": json.dumps(weights)
-        })
+        users.append(
+            {
+                "user_id": user_id,
+                "age": age,
+                "country": country,
+                # store as JSON list for favorite genres
+                "favorite_genres": json.dumps(favorite_genres),
+                # store as JSON dict for weights
+                "genre_weights": json.dumps(weights),
+            }
+        )
 
     users_df = pd.DataFrame(users)
     users_df.to_csv(output_path, index=False)
     print(f"Generated {n_users} users → {output_path}")
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--n_users", type=int, default=2000)
     parser.add_argument("--songs_csv_path", type=str, required=True)
-    parser.add_argument("--output_path", type=str, default="synthetic_users.csv")
+    parser.add_argument("--output_path", type=str, default="data/synthetic_users.csv")
     args = parser.parse_args()
 
     generate_users(args.n_users, args.songs_csv_path, args.output_path)
