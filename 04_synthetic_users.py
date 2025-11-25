@@ -84,7 +84,6 @@ def generate_users(
     users_df.to_csv(output_path, index=False)
     print(f"Generated {n_users} users → {output_path}")
 
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--n_users", type=int, default=2000)

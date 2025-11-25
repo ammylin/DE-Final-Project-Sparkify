@@ -1,0 +1,99 @@
+import numpy as np
+import pandas as pd
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics.pairwise import cosine_similarity
+from scipy.sparse import csr_matrix
+
+# ---------------------------------------------------------
+# Build standardized track embedding matrix
+# ---------------------------------------------------------
+def build_track_matrix(tracks_df):
+    # Ensure genre_single exists
+    if "genre_single" not in tracks_df.columns:
+        def pick_first(x):
+            if isinstance(x, (list, tuple)):
+                return x[0] if len(x) > 0 else None
+            return x
+        tracks_df['genre_single'] = tracks_df['track_genre'].apply(lambda x: pick_first(eval(x)) if isinstance(x, str) else pick_first(x))
+
+    audio_features = ["danceability", "energy", "valence", "tempo", "loudness"]
+
+    # Standardize features
+    scaler = StandardScaler()
+    scaled = scaler.fit_transform(tracks_df[audio_features])
+    X = csr_matrix(scaled)
+
+    return X
+
+# ---------------------------------------------------------
+# Recommend tracks for a single user
+# ---------------------------------------------------------
+def recommend_for_user(user, tracks_df, events_df, X, top_k=10):
+    user_id = user["user_id"]
+
+    # Parse genre_weights
+    if isinstance(user["genre_weights"], str):
+        genre_weights = json.loads(user["genre_weights"])
+    else:
+        genre_weights = user["genre_weights"]
+
+    def genre_score(genre):
+        return genre_weights.get(genre, 0)
+
+    tracks_df = tracks_df.copy()
+    tracks_df["genre_pref"] = tracks_df["genre_single"].apply(genre_score)
+
+    # Listening history
+    user_events = events_df[events_df["user_id"] == user_id]
+    listened_track_ids = user_events["track_id"].tolist()
+
+    genre_counts = user_events["genre"].value_counts().to_dict()
+    tracks_df["history_boost"] = tracks_df["genre_single"].apply(
+        lambda g: np.log1p(genre_counts.get(g, 0))
+    )
+
+    # Content similarity
+    if len(listened_track_ids) > 0:
+        listened_indices = tracks_df.index[tracks_df["track_id"].isin(listened_track_ids)]
+        user_vector = X[listened_indices].mean(axis=0).A  # convert sparse to numpy array
+        content_sim = cosine_similarity(user_vector, X)[0]
+    else:
+        content_sim = np.zeros(len(tracks_df))
+    tracks_df["content_sim"] = content_sim
+
+    # Popularity + exploration
+    exploration = user.get("exploration_weight", 0.1)
+    pop_norm = (tracks_df["popularity"] - tracks_df["popularity"].min()) / (
+        tracks_df["popularity"].max() - tracks_df["popularity"].min()
+    )
+    explore_noise = np.random.rand(len(tracks_df))
+    tracks_df["explore_pop"] = pop_norm * (1 - exploration) + exploration * explore_noise
+
+    # Final score
+    tracks_df["final_score"] = (
+        0.40 * tracks_df["genre_pref"] +
+        0.30 * tracks_df["content_sim"] +
+        0.20 * tracks_df["history_boost"] +
+        0.10 * tracks_df["explore_pop"]
+    )
+
+    # Filter out already listened tracks
+    recommended = tracks_df[~tracks_df["track_id"].isin(listened_track_ids)]
+
+    return recommended.sort_values("final_score", ascending=False).head(top_k)[
+        ["track_id", "track_name", "primary_artist", "genre_single", "final_score"]
+    ]
+
+# ---------------------------------------------------------
+# Generate recommendations for all users
+# ---------------------------------------------------------
+def recommend_for_all_users(users_df, tracks_df, events_df):
+    X = build_track_matrix(tracks_df)
+    all_results = []
+
+    for _, user in users_df.iterrows():
+        recs = recommend_for_user(user, tracks_df, events_df, X, top_k=10)
+        recs["user_id"] = user["user_id"]
+        all_results.append(recs)
+
+    return pd.concat(all_results, ignore_index=True)
