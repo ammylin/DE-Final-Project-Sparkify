@@ -103,3 +103,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     generate_users(args.n_users, args.songs_csv_path, args.output_path)
+
+
+'''
+Test this script in the terminal with: 
+python py_and_notebooks/04_synthetic_users.py \
+    --songs_csv_path data/cleaned_spotify_tracks.csv \
+    --n_users 2000 \
+    --output_path data/synthetic_users.csv
+'''
