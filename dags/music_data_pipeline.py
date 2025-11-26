@@ -5,15 +5,11 @@ import uuid
 import json
 import ast
 import pickle
-
-# import subprocess
 import psycopg2
 import os
 import sys
 import json
-
 from recommendation_model import recommend_for_all_users
-
 from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.decorators import task
@@ -21,12 +17,6 @@ import psycopg2
 from dotenv import load_dotenv
 
 load_dotenv()
-
-# Configuration
-# DATA_DIR = "/opt/airflow/data"
-# SONGS_CSV = f"{DATA_DIR}/cleaned_spotify_tracks.csv"
-# USERS_CSV = f"{DATA_DIR}/synthetic_users.csv"
-# EVENTS_CSV = f"{DATA_DIR}/synthetic_events.csv"
 
 
 def get_connection():
