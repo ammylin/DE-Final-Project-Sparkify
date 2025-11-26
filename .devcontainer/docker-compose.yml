@@ -11,6 +11,11 @@ x-airflow-common: &airflow-common
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://vscode:vscode@db:5432/airflow_db
     AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://vscode:vscode@db:5432/airflow_db
     AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
+    DB_NAME: musicdb
+    DB_USER: vscode
+    DB_PASSWORD: vscode
+    DB_HOST: db
+    DB_PORT: "5432"
     AIRFLOW__CORE__FERNET_KEY: ''
     AIRFLOW__CORE__TEST_CONNECTION: 'Enabled'
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'

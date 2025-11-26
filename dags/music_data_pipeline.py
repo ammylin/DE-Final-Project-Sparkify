@@ -4,12 +4,33 @@ import numpy as np
 import uuid
 import json
 import ast
+import subprocess
+import sys
 from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.decorators import task
+import os
+import psycopg2
+from dotenv import load_dotenv
 
+load_dotenv()
+
+# Configuration
 DATA_DIR = "/opt/airflow/data"
 SONGS_CSV = f"{DATA_DIR}/cleaned_spotify_tracks.csv"
+USERS_CSV = f"{DATA_DIR}/synthetic_users.csv"
+EVENTS_CSV = f"{DATA_DIR}/synthetic_events.csv"
+
+
+def get_connection():
+    return psycopg2.connect(
+        dbname=os.getenv("DB_NAME"),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASSWORD"),
+        host=os.getenv("DB_HOST"),
+        port=os.getenv("DB_PORT"),
+    )
+
 
 default_args = {
     "owner": "Sparkify",
@@ -20,70 +41,154 @@ default_args = {
 with DAG(
     dag_id="music_data_pipeline",
     start_date=datetime(2025, 11, 25),
-    schedule_interval="@daily",
+    schedule="@daily",
     catchup=False,
     default_args=default_args,
-    description="Music data pipeline",
+    description="Complete music data pipeline - Synthetic users and listening events",
     tags=["music", "synthetic-data"],
 ) as dag:
 
     @task()
-    def check_songs_data():
-        """Task 1: Verify that song data exists"""
+    def create_postgres_tables():
+        """Task 1: Create empty tables in PostgreSQL for music data for tracks, songs and events"""
+
+        create_tables_sql = """
+        CREATE SCHEMA IF NOT EXISTS music_analytics;
+
+        -- Original music tracks table
+        CREATE TABLE IF NOT EXISTS music_analytics.tracks (
+            track_id VARCHAR(22) PRIMARY KEY,
+            artists JSONB,                    -- Lists like jsons
+            track_name VARCHAR(500),
+            track_genre JSONB,                -- Lists like jsons
+            explicit INTEGER,
+            popularity INTEGER,
+            danceability FLOAT,
+            energy FLOAT,
+            key INTEGER,
+            loudness FLOAT,
+            mode INTEGER,
+            speechiness FLOAT,
+            acousticness FLOAT,
+            instrumentalness FLOAT,
+            liveness FLOAT,
+            valence FLOAT,
+            tempo FLOAT,
+            duration_ms INTEGER,
+            time_signature INTEGER,
+            primary_artist VARCHAR(255),
+            duration_sec FLOAT,
+            duration_min FLOAT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        -- Users table
+        CREATE TABLE IF NOT EXISTS music_analytics.users (
+            user_id VARCHAR(50) PRIMARY KEY,
+            age INTEGER,
+            country VARCHAR(50),
+            favorite_genres JSONB,
+            genre_weights JSONB,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        -- Listening events table
+        CREATE TABLE IF NOT EXISTS music_analytics.listening_events (
+            event_id VARCHAR(50) PRIMARY KEY,
+            user_id VARCHAR(50),
+            timestamp TIMESTAMP,
+            track_id VARCHAR(50),
+            track_name VARCHAR(255),
+            track_genre VARCHAR(100),
+            primary_artist VARCHAR(255),
+            danceability FLOAT,
+            energy FLOAT,
+            valence FLOAT,
+            loudness FLOAT,
+            tempo FLOAT,
+            popularity INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES music_analytics.users(user_id)
+        );
+        """
+
         try:
-            # ✅ Using the correct variable
-            songs_df = pd.read_csv(SONGS_CSV, nrows=5)
-            required_columns = ["track_id", "track_name", "track_genre", "artists"]
-
-            missing_columns = [
-                col for col in required_columns if col not in songs_df.columns
-            ]
-            if missing_columns:
-                raise ValueError(f"Missing columns: {missing_columns}")
-
-            print(f"✅ Song data verified. Columns: {list(songs_df.columns)}")
-            return f"Data OK - {len(songs_df.columns)} columns found"
-
-        except FileNotFoundError:
-            raise FileNotFoundError(f"❌ File not found: {SONGS_CSV}")
+            conn = get_connection()
+            cur = conn.cursor()
+            cur.execute(create_tables_sql)
+            conn.commit()
+            cur.close()
+            conn.close()
+            print("Tables created successfully")
+            return "OK"
         except Exception as e:
-            raise Exception(f"❌ Error checking data: {e}")
+            print(f"Error creating tables: {e}")
+            raise
 
     @task()
-    def generate_sample_users():
-        """Task 2: Generate sample users (simple version)"""
-        sample_users = [
-            {
-                "user_id": "user_001",
-                "age": 25,
-                "country": "USA",
-                "favorite_genre": "pop",
-            },
-            {
-                "user_id": "user_002",
-                "age": 30,
-                "country": "Mexico",
-                "favorite_genre": "rock",
-            },
-            {
-                "user_id": "user_003",
-                "age": 22,
-                "country": "Brazil",
-                "favorite_genre": "samba",
-            },
+    def verify_postgres_tables():
+        """Task 2: Verify that required PostgreSQL tables exist in the music_analytics schema"""
+
+        required_tables = [
+            "tracks",
+            "users",
+            "listening_events",
         ]
 
-        users_df = pd.DataFrame(sample_users)
-        # ✅ Using the correct variable
-        output_path = f"{DATA_DIR}/sample_users.csv"
-        users_df.to_csv(output_path, index=False)
+        schema = "music_analytics"
 
-        print(f"✅ Sample users generated: {len(users_df)} users")
-        print(f"📁 Saved to: {output_path}")
+        verify_sql = f"""
+        SELECT table_name
+        FROM information_schema.tables
+        WHERE table_schema = '{schema}';
+        """
 
-        return f"Generated {len(users_df)} sample users"
+        try:
+            conn = get_connection()
+            cur = conn.cursor()
+            cur.execute(verify_sql)
+            rows = cur.fetchall()
+            cur.close()
+            conn.close()
 
-    # Dependencies
-    data_check = check_songs_data()
-    users_task = generate_sample_users()
-    data_check >> users_task
+            existing = {row[0] for row in rows}
+            missing = [t for t in required_tables if t not in existing]
+
+            if missing:
+                raise ValueError(f"Missing tables: {missing}")
+
+            print("All required tables exist")
+            return "OK"
+
+        except Exception as e:
+            print(f"Error verifying tables: {e}")
+            raise
+
+    # I need to verify that Postgres connection works
+    @task()
+    def debug_postgres_connection():
+        """Task: Check that DB connection works and print version"""
+        try:
+            print("DB_NAME =", os.getenv("DB_NAME"))
+            print("DB_USER =", os.getenv("DB_USER"))
+            print("DB_HOST =", os.getenv("DB_HOST"))
+            print("DB_PORT =", os.getenv("DB_PORT"))
+
+            conn = get_connection()
+            cur = conn.cursor()
+            cur.execute("SELECT version();")
+            version = cur.fetchone()
+            print("PostgreSQL version:", version[0])
+            cur.close()
+            conn.close()
+            return "Connection OK"
+        except Exception as e:
+            print("Connection failed:", e)
+            raise
+
+    create_tables = create_postgres_tables()
+    verify_tables = verify_postgres_tables()
+    # debug_postgres_connection()
+
+    # Set the workflow: table creation → table verification
+    create_tables >> verify_tables
