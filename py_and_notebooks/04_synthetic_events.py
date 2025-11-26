@@ -1,3 +1,18 @@
+# 04_synthetic_events.py
+"""
+Generate synthetic listening events for users based on their music preferences.
+Each event includes:
+- A unique event ID
+- User ID
+- Timestamp of the listening event
+- Track ID and metadata (name, genre, album, artists)
+- Audio features (danceability, energy, valence)
+- Popularity score
+- Generates a CSV file of synthetic listening events.
+Events are generated to reflect user preferences, optionally weighted by track popularity,
+and now biased by user age and country for realism.
+"""
+
 import numpy as np
 import pandas as pd
 import uuid
@@ -146,3 +161,13 @@ if __name__ == "__main__":
         events_per_user=args.events_per_user,
         use_popularity_weights=args.use_popularity_weights,
     )
+
+'''
+Test this script in the terminal with:
+
+python py_and_notebooks/04_synthetic_events.py \
+    --users_csv data/synthetic_users.csv \
+    --songs_csv data/cleaned_spotify_tracks.csv \
+    --events_per_user 20 \
+    --output_path data/synthetic_events.csv
+'''
