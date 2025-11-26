@@ -96,7 +96,8 @@ def recommend_for_user(user, tracks_df, events_df, X, top_k=10):
 
 def recommend_for_all_users(users_df, tracks_df, events_df, chunk_size=500):
     print("Starting recommendation training...")
-    X, scaler = build_track_matrix(tracks_df)
+    tracks_df_sample = tracks_df.sample(frac=0.1, random_state=2025)
+    X, scaler = build_track_matrix(tracks_df_sample)
 
     all_results = []
 
