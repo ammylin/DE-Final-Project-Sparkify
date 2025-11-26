@@ -85,7 +85,6 @@ def generate_users(n_users: int, songs_csv_path: str, output_path: str, seed: in
                 "country": country,
                 # store as JSON list for favorite genres
                 "favorite_genres": json.dumps(favorite_genres),
-                # "fav_songs": ['track1', 'ß']
                 # store as JSON dict for weights
                 "genre_weights": json.dumps(weights),
             }

@@ -246,10 +246,119 @@ with DAG(
         print("Tracks table populated successfully")
         return "OK"
 
+    @task
+    def generate_users(n_users: int = 2000):
+        """Task 4: Generate users and load them into music_analytics.users table"""
+        np.random.seed(42)
+
+        conn = get_connection()
+        tracks_df = pd.read_sql(
+            "SELECT track_id, track_genre FROM music_analytics.tracks;", conn
+        )
+        conn.close()
+
+        tracks_df["track_genre_list"] = tracks_df["track_genre"].apply(ast.literal_eval)
+        all_genres = sorted(
+            list({g for sublist in tracks_df["track_genre_list"] for g in sublist})
+        )
+
+        countries = [
+            "USA",
+            "Canada",
+            "UK",
+            "Germany",
+            "France",
+            "Mexico",
+            "Brazil",
+            "India",
+            "Japan",
+            "Australia",
+        ]
+
+        users = []
+        for _ in range(n_users):
+            user_id = str(uuid.uuid4())
+            age = np.random.randint(16, 65)
+            country = np.random.choice(countries)
+
+            # Step 1: Choose 1–3 favorite genres
+            num_favs = np.random.choice([1, 2, 3], p=[0.6, 0.3, 0.1])
+            favorite_genres = list(
+                np.random.choice(all_genres, size=num_favs, replace=False)
+            )
+
+            # Step 2–4: Assign weights (favorite genres high, others low)
+            weights = {}
+            for i, g in enumerate(favorite_genres):
+                if i == 0:
+                    weights[g] = np.random.uniform(0.40, 0.60)
+                elif i == 1:
+                    weights[g] = np.random.uniform(0.20, 0.30)
+                elif i == 2:
+                    weights[g] = np.random.uniform(0.10, 0.20)
+
+            # Add small "exploration" genre weights
+            num_extras = np.random.randint(2, 5)
+            extra_genres = np.random.choice(
+                [g for g in all_genres if g not in favorite_genres],
+                size=num_extras,
+                replace=False,
+            )
+            for g in extra_genres:
+                weights[g] = np.random.uniform(0.01, 0.05)
+
+            # Normalize weights
+            total = sum(weights.values())
+            weights = {g: round(w / total, 4) for g, w in weights.items()}
+
+            users.append(
+                {
+                    "user_id": user_id,
+                    "age": age,
+                    "country": country,
+                    "favorite_genres": json.dumps(favorite_genres),
+                    "genre_weights": json.dumps(weights),
+                }
+            )
+
+        # Insert into users table
+        conn = get_connection()
+        cur = conn.cursor()
+        for u in users:
+            try:
+                cur.execute(
+                    """
+                    INSERT INTO music_analytics.users (user_id, age, country, favorite_genres, genre_weights)
+                    VALUES (%s,%s,%s,%s,%s)
+                    ON CONFLICT (user_id) DO NOTHING;
+                """,
+                    (
+                        u["user_id"],
+                        u["age"],
+                        u["country"],
+                        u["favorite_genres"],
+                        u["genre_weights"],
+                    ),
+                )
+            except Exception as e:
+                print(f"Error inserting user {u['user_id']}: {e}")
+                continue
+
+        conn.commit()
+        cur.close()
+        conn.close()
+        print(f"Generated {n_users} users → music_analytics.users table")
+
+    @task
+    def generate_listening_events(n_users: int = 2000):
+        """Task 4: Generate users and load them into music_analytics.listening_events table"""
+        np.random.seed(42)
+
     create_tables = create_postgres_tables()
     verify_tables = verify_postgres_tables()
     create_tracks_table = generate_tracks_table()
+    create_users_table = generate_users(n_users=2000)
     # debug_postgres_connection()
 
-    # Set the workflow: table creation → table verification → tracks table creation
-    create_tables >> verify_tables >> create_tracks_table
+    # Set the workflow: table creation → table verification → tracks table creation → users table creation
+    create_tables >> verify_tables >> [create_tracks_table, create_users_table]
