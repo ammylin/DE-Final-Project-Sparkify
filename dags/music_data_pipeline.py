@@ -59,7 +59,7 @@ with DAG(
         CREATE TABLE IF NOT EXISTS music_analytics.tracks (
             track_id VARCHAR(22) PRIMARY KEY,
             artists JSONB,                    -- Lists like jsons
-            track_name VARCHAR(500),
+            track_name TEXT,
             track_genre JSONB,                -- Lists like jsons
             explicit INTEGER,
             popularity INTEGER,
