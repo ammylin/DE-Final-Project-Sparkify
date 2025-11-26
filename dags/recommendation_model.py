@@ -46,8 +46,9 @@ def recommend_for_user(user, tracks_df, events_df, X, top_k=10):
     tracks_df["genre_pref"] = tracks_df["genre_single"].apply(genre_score)
 
     # Listening history
-    user_events = events_df[events_df["user_id"] == user_id]
+    user_events = events_df[events_df["user_id"] == user_id].copy()
     listened_track_ids = user_events["track_id"].tolist()
+    user_events.loc[:, "genre"] = user_events["track_genre"]
 
     genre_counts = user_events["genre"].value_counts().to_dict()
     tracks_df["history_boost"] = tracks_df["genre_single"].apply(
@@ -93,19 +94,24 @@ def recommend_for_user(user, tracks_df, events_df, X, top_k=10):
     ]
 
 
-def recommend_for_all_users(users_df, tracks_df, events_df):
-
+def recommend_for_all_users(users_df, tracks_df, events_df, chunk_size=500):
+    print("Starting recommendation training...")
     X, scaler = build_track_matrix(tracks_df)
 
     all_results = []
 
-    for _, user in users_df.iterrows():
+    for start in range(0, len(users_df), chunk_size):
+        end = min(start + chunk_size, len(users_df))
+        chunk = users_df.iloc[start:end]
 
-        recs = recommend_for_user(user, tracks_df, events_df, X, top_k=10)
+        print(f"Processing users {start+1} to {end} / {len(users_df)}")
 
-        recs["user_id"] = user["user_id"]
+        for i, user in chunk.iterrows():
+            recs = recommend_for_user(user, tracks_df, events_df, X, top_k=10)
+            recs["user_id"] = user["user_id"]
+            all_results.append(recs)
 
-        all_results.append(recs)
+        print(f"Finished processing users {start+1} to {end}")
 
     # Save the model as pickle
     # Convert X (csr_matrix) to dense numpy array to ensure compatibility with pickle
