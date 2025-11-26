@@ -4,22 +4,29 @@ import numpy as np
 import uuid
 import json
 import ast
-import subprocess
+import pickle
+
+# import subprocess
+import psycopg2
+import os
 import sys
+import json
+
+from recommendation_model import recommend_for_all_users
+
 from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.decorators import task
-import os
 import psycopg2
 from dotenv import load_dotenv
 
 load_dotenv()
 
 # Configuration
-DATA_DIR = "/opt/airflow/data"
-SONGS_CSV = f"{DATA_DIR}/cleaned_spotify_tracks.csv"
-USERS_CSV = f"{DATA_DIR}/synthetic_users.csv"
-EVENTS_CSV = f"{DATA_DIR}/synthetic_events.csv"
+# DATA_DIR = "/opt/airflow/data"
+# SONGS_CSV = f"{DATA_DIR}/cleaned_spotify_tracks.csv"
+# USERS_CSV = f"{DATA_DIR}/synthetic_users.csv"
+# EVENTS_CSV = f"{DATA_DIR}/synthetic_events.csv"
 
 
 def get_connection():
@@ -358,7 +365,6 @@ with DAG(
 
         conn = get_connection()
         tracks_df = pd.read_sql("SELECT * FROM music_analytics.tracks;", conn)
-
         users_df = pd.read_sql("SELECT * FROM music_analytics.users;", conn)
         conn.close()
 
@@ -401,7 +407,6 @@ with DAG(
             user_id = user_row["user_id"]
             user_age = user_row["age"]
             user_country = user_row["country"]
-            # weights = json.loads(user_row["genre_weights"])
             weights = user_row["genre_weights"]
             if isinstance(weights, str):  # If it's a string, parse it as JSON
                 weights = json.loads(weights)
@@ -521,8 +526,21 @@ with DAG(
         )
 
     @task
-    def train_recommendation_model():
-        """Task 6: Train recommendation model using listening events data and save it as a pickle file"""
+    def train_and_save_recommendation_model():
+        """Task 6: Train and save recommendation model using listening events data and save it as a pickle file"""
+
+        conn = get_connection()
+        tracks_df = pd.read_sql("SELECT * FROM music_analytics.tracks;", conn)
+        users_df = pd.read_sql("SELECT * FROM music_analytics.users;", conn)
+        events_df = pd.read_sql("SELECT * FROM music_analytics.listening_events;", conn)
+        conn.close()
+
+        recommendation_model = recommend_for_all_users(users_df, tracks_df, events_df)
+        with open("/opt/airflow/data/recommendation_model.pkl", "wb") as f:
+            pickle.dump(recommendation_model, f)
+
+        print("Recommendation model trained and saved in a pickle file!")
+        return "Trained and saved model"
 
     create_tables = create_postgres_tables()
     verify_tables = verify_postgres_tables()
@@ -531,7 +549,7 @@ with DAG(
     create_events_table = generate_listening_events(
         events_per_user=20, use_popularity_weights=True
     )
-    # train_model = train_recommendation_model()
+    train_and_save_model = train_and_save_recommendation_model()
     # debug_postgres_connection()
 
     # Set the workflow
@@ -541,5 +559,5 @@ with DAG(
         >> create_tracks_table
         >> create_users_table
         >> create_events_table
-        # >> train_model
+        >> train_and_save_model
     )
