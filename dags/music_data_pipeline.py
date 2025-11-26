@@ -520,6 +520,10 @@ with DAG(
             f"Generated {len(all_events)} listening events → music_analytics.listening_events table"
         )
 
+    @task
+    def train_recommendation_model():
+        """Task 6: Train recommendation model using listening events data and save it as a pickle file"""
+
     create_tables = create_postgres_tables()
     verify_tables = verify_postgres_tables()
     create_tracks_table = generate_tracks_table()
@@ -527,13 +531,15 @@ with DAG(
     create_events_table = generate_listening_events(
         events_per_user=20, use_popularity_weights=True
     )
+    # train_model = train_recommendation_model()
     # debug_postgres_connection()
 
-    # Set the workflow: table creation → table verification → tracks table creation → users table creation
+    # Set the workflow
     (
         create_tables
         >> verify_tables
         >> create_tracks_table
         >> create_users_table
         >> create_events_table
+        # >> train_model
     )
