@@ -186,9 +186,70 @@ with DAG(
             print("Connection failed:", e)
             raise
 
+    @task
+    def generate_tracks_table():
+        """Task 3: Load CSV data into music_analytics.tracks table"""
+        CSV_PATH = "/opt/airflow/data/cleaned_spotify_tracks.csv"
+
+        # Read CSV
+        df = pd.read_csv(CSV_PATH)
+
+        # Connect to Postgres
+        conn = get_connection()
+        cur = conn.cursor()
+
+        for _, row in df.iterrows():
+            try:
+                cur.execute(
+                    """
+                    INSERT INTO music_analytics.tracks (
+                        track_id, artists, track_name, track_genre, explicit,
+                        popularity, danceability, energy, key, loudness,
+                        mode, speechiness, acousticness, instrumentalness, liveness,
+                        valence, tempo, duration_ms, time_signature, primary_artist,
+                        duration_sec, duration_min
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (track_id) DO NOTHING;
+                """,
+                    (
+                        row["track_id"],
+                        json.dumps(row["artists"]),
+                        row["track_name"],
+                        json.dumps(row["track_genre"]),
+                        row["explicit"],
+                        row["popularity"],
+                        row["danceability"],
+                        row["energy"],
+                        row["key"],
+                        row["loudness"],
+                        row["mode"],
+                        row["speechiness"],
+                        row["acousticness"],
+                        row["instrumentalness"],
+                        row["liveness"],
+                        row["valence"],
+                        row["tempo"],
+                        row["duration_ms"],
+                        row["time_signature"],
+                        row["primary_artist"],
+                        row["duration_sec"],
+                        row["duration_min"],
+                    ),
+                )
+            except Exception as e:
+                print(f"Error inserting row {row['track_id']}: {e}")
+                continue
+
+        conn.commit()
+        cur.close()
+        conn.close()
+        print("Tracks table populated successfully")
+        return "OK"
+
     create_tables = create_postgres_tables()
     verify_tables = verify_postgres_tables()
+    create_tracks_table = generate_tracks_table()
     # debug_postgres_connection()
 
-    # Set the workflow: table creation → table verification
-    create_tables >> verify_tables
+    # Set the workflow: table creation → table verification → tracks table creation
+    create_tables >> verify_tables >> create_tracks_table
