@@ -94,25 +94,19 @@ def recommend_for_user(user, tracks_df, events_df, X, top_k=10):
     ]
 
 
-def recommend_for_all_users(users_df, tracks_df, events_df, chunk_size=500):
+def recommend_for_all_users(users_df, tracks_df, events_df):
     print("Starting recommendation training...")
-    tracks_df_sample = tracks_df.sample(frac=0.1, random_state=2025)
-    X, scaler = build_track_matrix(tracks_df_sample)
+    X, scaler = build_track_matrix(tracks_df)
 
     all_results = []
 
-    for start in range(0, len(users_df), chunk_size):
-        end = min(start + chunk_size, len(users_df))
-        chunk = users_df.iloc[start:end]
+    for i, user in users_df.iterrows():
+        print(f"Processing user {i+1}/{len(users_df)}")
+        recs = recommend_for_user(user, tracks_df, events_df, X, top_k=10)
 
-        print(f"Processing users {start+1} to {end} / {len(users_df)}")
+        recs["user_id"] = user["user_id"]
 
-        for i, user in chunk.iterrows():
-            recs = recommend_for_user(user, tracks_df, events_df, X, top_k=10)
-            recs["user_id"] = user["user_id"]
-            all_results.append(recs)
-
-        print(f"Finished processing users {start+1} to {end}")
+        all_results.append(recs)
 
     # Save the model as pickle
     # Convert X (csr_matrix) to dense numpy array to ensure compatibility with pickle

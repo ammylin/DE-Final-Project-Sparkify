@@ -9,7 +9,7 @@ import psycopg2
 import os
 import sys
 import json
-from recommendation_model import recommend_for_all_users
+from recommendation_model import build_track_matrix
 from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.decorators import task
@@ -516,21 +516,97 @@ with DAG(
         )
 
     @task
-    def train_and_save_recommendation_model():
-        """Task 6: Train and save recommendation model using listening events data and save it as a pickle file"""
+    def build_and_save_model_pickle():
+        """Task 6: Build the track feature matrix and save the pickle"""
 
+        print("Loading tracks from PostgreSQL...")
         conn = get_connection()
         tracks_df = pd.read_sql("SELECT * FROM music_analytics.tracks;", conn)
-        users_df = pd.read_sql("SELECT * FROM music_analytics.users;", conn)
-        events_df = pd.read_sql("SELECT * FROM music_analytics.listening_events;", conn)
         conn.close()
+        print(f"Loaded {len(tracks_df)} tracks")
 
-        recommendation_model = recommend_for_all_users(users_df, tracks_df, events_df)
-        with open("/opt/airflow/data/recommendation_model.pkl", "wb") as f:
-            pickle.dump(recommendation_model, f)
+        # Build track matrix X and scaler
+        print("Building track feature matrix...")
+        X, scaler = build_track_matrix(tracks_df)
 
-        print("Recommendation model trained and saved in a pickle file!")
-        return "Trained and saved model"
+        # Keep only necessary track info
+        tracks_df_subset = tracks_df[
+            ["track_id", "track_name", "primary_artist", "genre_single", "popularity"]
+        ]
+
+        # Save pickle
+        pickle_path = "/opt/airflow/data/recommendation_model.pkl"
+        with open(pickle_path, "wb") as f:
+            pickle.dump({"X": X, "scaler": scaler, "tracks_df": tracks_df_subset}, f)
+
+        print(f"Model pickle saved at: {pickle_path}")
+        return pickle_path
+
+    @task()
+    def load_model_pickle(
+        pickle_path: str = "/opt/airflow/data/recommendation_model.pkl",
+    ):
+        """Task 7: Load the track matrix, scaler, and track metadata from pickle"""
+        with open(pickle_path, "rb") as f:
+            data = pickle.load(f)
+        X = data["X"]
+        scaler = data["scaler"]
+        tracks_df = data.get("tracks_df")
+        return {"X": X, "scaler": scaler, "tracks_df": tracks_df}
+
+    @task()
+    def recommend_for_user_task(
+        model_data: dict,
+        user_genre_weights: dict,
+        listened_track_ids: list = None,
+        top_k: int = 10,
+    ):
+        """Generate top-k recommendations for a single user"""
+        X = model_data["X"]
+        tracks_df = model_data["tracks_df"].copy()
+
+        if tracks_df is None:
+            raise ValueError("tracks_df must be included in the pickle!")
+
+        # Compute genre preference score
+        tracks_df["genre_pref"] = tracks_df["genre_single"].apply(
+            lambda g: user_genre_weights.get(g, 0)
+        )
+
+        # History boost (optional)
+        if listened_track_ids:
+            tracks_df["history_boost"] = tracks_df["track_id"].apply(
+                lambda t: np.log1p(listened_track_ids.count(t))
+            )
+        else:
+            tracks_df["history_boost"] = 0.0
+
+        # Popularity + exploration
+        pop_norm = (tracks_df["popularity"] - tracks_df["popularity"].min()) / (
+            tracks_df["popularity"].max() - tracks_df["popularity"].min()
+        )
+        explore_noise = np.random.rand(len(tracks_df))
+        exploration = 0.1
+        tracks_df["explore_pop"] = (
+            pop_norm * (1 - exploration) + exploration * explore_noise
+        )
+
+        # Final score
+        tracks_df["final_score"] = (
+            0.5 * tracks_df["genre_pref"]
+            + 0.3 * tracks_df["history_boost"]
+            + 0.2 * tracks_df["explore_pop"]
+        )
+
+        # Remove already listened tracks
+        if listened_track_ids:
+            tracks_df = tracks_df[~tracks_df["track_id"].isin(listened_track_ids)]
+
+        top_recs = tracks_df.sort_values("final_score", ascending=False).head(top_k)
+
+        return top_recs[
+            ["track_id", "track_name", "primary_artist", "genre_single", "final_score"]
+        ].to_dict(orient="records")
 
     create_tables = create_postgres_tables()
     verify_tables = verify_postgres_tables()
@@ -539,7 +615,9 @@ with DAG(
     create_events_table = generate_listening_events(
         events_per_user=20, use_popularity_weights=True
     )
-    train_and_save_model = train_and_save_recommendation_model()
+    build_and_save_pickle = build_and_save_model_pickle()
+    load_pickle = load_model_pickle()
+
     # debug_postgres_connection()
 
     # Set the workflow
@@ -549,5 +627,6 @@ with DAG(
         >> create_tracks_table
         >> create_users_table
         >> create_events_table
-        >> train_and_save_model
+        >> build_and_save_pickle
+        >> load_pickle
     )
