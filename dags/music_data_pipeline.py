@@ -546,13 +546,10 @@ with DAG(
     def load_model_pickle(
         pickle_path: str = "/opt/airflow/data/recommendation_model.pkl",
     ):
-        """Task 7: Load the track matrix, scaler, and track metadata from pickle"""
-        with open(pickle_path, "rb") as f:
-            data = pickle.load(f)
-        X = data["X"]
-        scaler = data["scaler"]
-        tracks_df = data.get("tracks_df")
-        return {"X": X, "scaler": scaler, "tracks_df": tracks_df}
+        """Just return the path to the pickle file (not the objects themselves)"""
+        if not os.path.exists(pickle_path):
+            raise FileNotFoundError(f"Pickle not found at {pickle_path}")
+        return pickle_path
 
     @task()
     def recommend_for_user_task(
