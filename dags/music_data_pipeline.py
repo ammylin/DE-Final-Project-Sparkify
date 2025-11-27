@@ -546,7 +546,7 @@ with DAG(
     def load_model_pickle(
         pickle_path: str = "/opt/airflow/data/recommendation_model.pkl",
     ):
-        """Just return the path to the pickle file (not the objects themselves)"""
+        """Task 7: Return the path to the pickle file"""
         if not os.path.exists(pickle_path):
             raise FileNotFoundError(f"Pickle not found at {pickle_path}")
         return pickle_path
