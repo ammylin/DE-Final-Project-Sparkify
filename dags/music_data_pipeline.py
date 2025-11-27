@@ -243,6 +243,37 @@ with DAG(
         print("Tracks table populated successfully")
         return "OK"
 
+    @task()
+    def create_track_primary_genre_table():
+        """
+        Task 3: Create a table with track_id and the first genre from track_genre JSON array
+        """
+        create_table_sql = """
+        CREATE TABLE IF NOT EXISTS music_analytics.track_primary_genre AS
+        SELECT 
+            track_id,
+            TRIM(BOTH '\\' FROM 
+                SPLIT_PART(
+                    REPLACE(REPLACE(REPLACE(track_genre::text, '[', ''), ']', ''), '"', ''),
+                    ',',
+                    1
+                )
+            ) as first_genre
+        FROM music_analytics.tracks;
+        """
+
+        try:
+            conn = get_connection()
+            cur = conn.cursor()
+            cur.execute(create_table_sql)
+            conn.commit()
+            cur.close()
+            conn.close()
+            print("Table music_analytics.track_primary_genre created successfully")
+        except Exception as e:
+            print(f"Error creating table track_primary_genre: {e}")
+            raise
+
     @task
     def generate_users(n_users: int = 2000):
         """Task 4: Generate users and load them into music_analytics.users table"""
@@ -515,6 +546,36 @@ with DAG(
             f"Generated {len(all_events)} listening events → music_analytics.listening_events table"
         )
 
+    @task()
+    def create_user_genre_table():
+        """
+        Task 5: Create a table that expands user favorite genres into separate rows
+        """
+        create_table_sql = """
+        CREATE TABLE IF NOT EXISTS music_analytics.user_genres AS
+        WITH genre_expansion AS (
+            SELECT 
+                u.user_id, 
+                genre
+            FROM 
+                music_analytics.users u,
+                LATERAL jsonb_array_elements_text(u.favorite_genres) AS genre
+        )
+        SELECT * FROM genre_expansion;
+        """
+
+        try:
+            conn = get_connection()
+            cur = conn.cursor()
+            cur.execute(create_table_sql)
+            conn.commit()
+            cur.close()
+            conn.close()
+            print("Table music_analytics.user_genres created successfully")
+        except Exception as e:
+            print(f"Error creating table user_genres: {e}")
+            raise
+
     @task
     def build_and_save_model_pickle():
         """Task 6: Build the track feature matrix and save the pickle"""
@@ -542,24 +603,26 @@ with DAG(
         print(f"Model pickle saved at: {pickle_path}")
         return pickle_path
 
-    @task()
-    def load_model_pickle(
-        pickle_path: str = "/opt/airflow/data/recommendation_model.pkl",
-    ):
-        """Task 7: Return the path to the pickle file"""
-        if not os.path.exists(pickle_path):
-            raise FileNotFoundError(f"Pickle not found at {pickle_path}")
-        return pickle_path
+    # @task()
+    # def load_model_pickle(
+    #     pickle_path: str = "/opt/airflow/data/recommendation_model.pkl",
+    # ):
+    #     """Task 7: Return the path to the pickle file"""
+    #     if not os.path.exists(pickle_path):
+    #         raise FileNotFoundError(f"Pickle not found at {pickle_path}")
+    #     return pickle_path
 
     create_tables = create_postgres_tables()
     verify_tables = verify_postgres_tables()
     create_tracks_table = generate_tracks_table()
+    create_tracks_primary_genre_table = create_track_primary_genre_table()
     create_users_table = generate_users(n_users=2000)
     create_events_table = generate_listening_events(
         events_per_user=20, use_popularity_weights=True
     )
+    create_users_genre_table = create_user_genre_table()
     build_and_save_pickle = build_and_save_model_pickle()
-    load_pickle = load_model_pickle()
+    # load_pickle = load_model_pickle()
 
     # debug_postgres_connection()
 
@@ -569,7 +632,8 @@ with DAG(
         >> verify_tables
         >> create_tracks_table
         >> create_users_table
-        >> create_events_table
+        >> create_tracks_primary_genre_table
+        >> [create_events_table, create_users_genre_table]
         >> build_and_save_pickle
-        >> load_pickle
+        # >> load_pickle
     )
