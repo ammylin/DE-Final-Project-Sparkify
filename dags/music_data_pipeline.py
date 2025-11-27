@@ -576,9 +576,58 @@ with DAG(
             print(f"Error creating table user_genres: {e}")
             raise
 
+    @task()
+    def create_users_with_recommendations_table():
+        """
+            Task 6: Create a table that assigns track recommendations to each user
+        based on their favorite genres and available tracks per genre
+        """
+        create_table_sql = """
+        CREATE TABLE IF NOT EXISTS music_analytics.users_with_recommendations AS
+        WITH user_track_candidates AS (
+            SELECT 
+                ug.user_id,
+                ug.genre,
+                tpg.track_id,
+                ROW_NUMBER() OVER (PARTITION BY ug.user_id, ug.genre ORDER BY RANDOM()) AS rn
+            FROM music_analytics.user_genres ug
+            JOIN music_analytics.track_primary_genre tpg 
+                ON ug.genre = tpg.first_genre
+        ),
+        tracks_per_user_genre AS (
+            SELECT 
+                user_id,
+                genre,
+                ARRAY_AGG(track_id) AS track_ids
+            FROM user_track_candidates
+            WHERE rn <= 2
+            GROUP BY user_id, genre
+        )
+        SELECT 
+            u.*,
+            jsonb_object_agg(tpg.genre, to_jsonb(tpg.track_ids)) AS genre_track_recommendations
+        FROM music_analytics.users u
+        JOIN tracks_per_user_genre tpg ON u.user_id = tpg.user_id
+        GROUP BY u.user_id, u.age, u.country, u.favorite_genres, u.genre_weights, u.created_at;
+        """
+
+        try:
+            conn = get_connection()
+            cur = conn.cursor()
+            cur.execute(create_table_sql)
+            conn.commit()
+            cur.close()
+            conn.close()
+            print(
+                "Table music_analytics.users_with_recommendations created successfully"
+            )
+        except Exception as e:
+            print(f"Error creating table users_with_recommendations: {e}")
+            raise
+
     @task
     def build_and_save_model_pickle():
-        """Task 6: Build the track feature matrix and save the pickle"""
+        """Task 7: Build the track feature matrix and save the pickle"""
 
         print("Loading tracks from PostgreSQL...")
         conn = get_connection()
@@ -618,9 +667,10 @@ with DAG(
     create_tracks_primary_genre_table = create_track_primary_genre_table()
     create_users_table = generate_users(n_users=2000)
     create_events_table = generate_listening_events(
-        events_per_user=20, use_popularity_weights=True
+        events_per_user=10, use_popularity_weights=True
     )
     create_users_genre_table = create_user_genre_table()
+    create_users_recommendations_table = create_users_with_recommendations_table()
     build_and_save_pickle = build_and_save_model_pickle()
     # load_pickle = load_model_pickle()
 
@@ -634,6 +684,7 @@ with DAG(
         >> create_users_table
         >> create_tracks_primary_genre_table
         >> [create_events_table, create_users_genre_table]
+        >> create_users_recommendations_table
         >> build_and_save_pickle
         # >> load_pickle
     )
