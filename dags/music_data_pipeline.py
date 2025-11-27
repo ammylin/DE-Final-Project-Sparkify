@@ -551,60 +551,6 @@ with DAG(
             raise FileNotFoundError(f"Pickle not found at {pickle_path}")
         return pickle_path
 
-    @task()
-    def recommend_for_user_task(
-        model_data: dict,
-        user_genre_weights: dict,
-        listened_track_ids: list = None,
-        top_k: int = 10,
-    ):
-        """Generate top-k recommendations for a single user"""
-        X = model_data["X"]
-        tracks_df = model_data["tracks_df"].copy()
-
-        if tracks_df is None:
-            raise ValueError("tracks_df must be included in the pickle!")
-
-        # Compute genre preference score
-        tracks_df["genre_pref"] = tracks_df["genre_single"].apply(
-            lambda g: user_genre_weights.get(g, 0)
-        )
-
-        # History boost (optional)
-        if listened_track_ids:
-            tracks_df["history_boost"] = tracks_df["track_id"].apply(
-                lambda t: np.log1p(listened_track_ids.count(t))
-            )
-        else:
-            tracks_df["history_boost"] = 0.0
-
-        # Popularity + exploration
-        pop_norm = (tracks_df["popularity"] - tracks_df["popularity"].min()) / (
-            tracks_df["popularity"].max() - tracks_df["popularity"].min()
-        )
-        explore_noise = np.random.rand(len(tracks_df))
-        exploration = 0.1
-        tracks_df["explore_pop"] = (
-            pop_norm * (1 - exploration) + exploration * explore_noise
-        )
-
-        # Final score
-        tracks_df["final_score"] = (
-            0.5 * tracks_df["genre_pref"]
-            + 0.3 * tracks_df["history_boost"]
-            + 0.2 * tracks_df["explore_pop"]
-        )
-
-        # Remove already listened tracks
-        if listened_track_ids:
-            tracks_df = tracks_df[~tracks_df["track_id"].isin(listened_track_ids)]
-
-        top_recs = tracks_df.sort_values("final_score", ascending=False).head(top_k)
-
-        return top_recs[
-            ["track_id", "track_name", "primary_artist", "genre_single", "final_score"]
-        ].to_dict(orient="records")
-
     create_tables = create_postgres_tables()
     verify_tables = verify_postgres_tables()
     create_tracks_table = generate_tracks_table()
