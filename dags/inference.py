@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.decorators import task
 from dotenv import load_dotenv
+import pdb
 
 load_dotenv()
 
@@ -148,7 +149,11 @@ with DAG(
         dot_products = track_matrix.dot(user_vector)
 
         # Final scores
-        similarity_scores = dot_products / (user_norm * track_norms)
+        similarity_scores = dot_products / (user_norm * track_norms) 
+        print("Dot products:")
+        print(dot_products)
+        print("Similarity scores:")
+        print(similarity_scores)
 
         # 5. Ranking and Filtering
         # Create a list of (index, score) tuples: [(0, 0.98), (1, 0.45), ...]
@@ -156,6 +161,8 @@ with DAG(
 
         # Sort by score descending (highest similarity first)
         scores_with_indices.sort(key=lambda x: x[1], reverse=True)
+        print("Top scores with indices:")
+        print(scores_with_indices)
 
         recommendations = []
         for idx, score in scores_with_indices:
