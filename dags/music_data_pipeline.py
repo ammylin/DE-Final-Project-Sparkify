@@ -640,9 +640,34 @@ with DAG(
     @task
     def compute_user_embeddings():
         """
-        Task 8: Compute 64-dim embeddings for all users and UPDATE the users table.
+        Task 8: Compute 64-dim embeddings for all users and update the users table.
         """
         conn = get_connection()
+
+        print("Fetching track embeddings to calculate genre centroids...")
+        tracks_df = pd.read_sql("""
+            SELECT t.track_embedding, g.first_genre 
+            FROM music_analytics.tracks t 
+            JOIN music_analytics.track_primary_genre g ON t.track_id = g.track_id 
+            WHERE t.track_embedding IS NOT NULL;
+        """, conn)
+
+        # Helper to parse vector strings back to arrays
+        def parse_pgvector(s):
+            # Clean string format: "(0.1,0.2,...)" -> numpy array
+            clean_str = s.replace('[', '').replace(']', '').replace('(', '').replace(')', '')
+            return np.fromstring(clean_str, sep=',')
+        
+        genre_centroids = {}
+        if not tracks_df.empty:
+            tracks_df['vector'] = tracks_df['track_embedding'].apply(parse_pgvector)
+            # Calculate the average vector for each genre
+            centroids_df = tracks_df.groupby('first_genre')['vector'].apply(lambda x: np.mean(np.vstack(x), axis=0))
+            genre_centroids = centroids_df.to_dict()
+            print(f"Calculated centroids for {len(genre_centroids)} genres.")
+        else:
+            print("WARNING: No track embeddings found. User vectors will be zero.")
+
         users_df = pd.read_sql("SELECT user_id, genre_weights FROM music_analytics.users;", conn)
         conn.close()
         
@@ -655,7 +680,7 @@ with DAG(
 
         # Embedding calculation
         users_df['user_embedding'] = users_df['weights_dict'].apply(
-            lambda w: generate_user_vector(w).tolist()
+            lambda w: generate_user_vector(w, genre_centroids).tolist()
         )
 
         conn = get_connection()
@@ -723,13 +748,12 @@ with DAG(
         print(f"Model embedding artifact saved at: {pickle_path}")
         return pickle_path
 
-    # Define the tasks
+    # Define tasks
     create_tables = create_postgres_tables()
     verify_tables = verify_postgres_tables()
     create_tracks_table = generate_tracks_table()
     create_users_table = generate_users()
     create_events_table = generate_listening_events()
-    
     add_embedding_cols = add_embedding_columns() 
     create_tracks_primary_genre_table = create_track_primary_genre_table()
     create_users_genre_table = create_user_genre_table()
@@ -738,31 +762,40 @@ with DAG(
     compute_user_embeds = compute_user_embeddings()
     build_and_save_pickle = build_and_save_model_pickle()
 
-    # Define the parallel groups using variables
-    feature_and_event_group = [create_events_table, create_users_genre_table]
+    # Groups
+    prep_layer = [add_embedding_cols, create_tracks_primary_genre_table]
+    feature_group = [create_events_table, create_users_genre_table]
     embedding_computation_group = [compute_track_embeds, compute_user_embeds]
-    
-    # Set the sequential flow
-    (
-        create_tables
-        >> verify_tables
-        >> create_tracks_table
-        >> create_users_table
-        >> add_embedding_cols  
-        >> create_tracks_primary_genre_table 
+
+    # --- WORKFLOW ---
+    # Setup chain
+    setup_chain = (
+        create_tables 
+        >> verify_tables 
+        >> create_tracks_table 
+        >> create_users_table 
     )
 
-    # 1. Chain the Feature Group to run AFTER tracks_primary_genre is done.
-    # The last sequential task must be set as upstream for ALL tasks in the feature group.
-    create_tracks_primary_genre_table.set_downstream(feature_and_event_group)
+    # Setup -> Prep (Task >> List is okay)
+    setup_chain >> prep_layer
 
-    # 2. FIX THE ERROR: Chain the Embedding Group to run AFTER the Feature Group.
-    # We must iterate through the first list and set the second list as downstream for *every* task.
-    for task_a in feature_and_event_group:
-        task_a.set_downstream(embedding_computation_group)
-    
-    # 3. Chain the last group to the final save task.
-    embedding_computation_group >> build_and_save_pickle
+    # Prep -> Feature (List >> List = Loop required)
+    for p_task in prep_layer:
+        for f_task in feature_group:
+            p_task >> f_task
+
+    # Feature -> Embedding (List >> List = Loop required)
+    # NOTE: While we defined embedding_computation_group, we actually need sequentiality here
+    # Tracks must run before Users.
+    for f_task in feature_group:
+        f_task >> compute_track_embeds
+
+    # Embedding Sequence (Task >> Task >> Task)
+    (
+        compute_track_embeds 
+        >> compute_user_embeds 
+        >> build_and_save_pickle
+    )
 
 
 

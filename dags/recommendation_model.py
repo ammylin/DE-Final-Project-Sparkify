@@ -11,37 +11,13 @@ warnings.filterwarnings('ignore')
 # CONFIGURATION
 EMBEDDING_DIMENSION = 64
 
-# HELPER: Deterministic Random Vectors for Genres
-def get_genre_anchor(genre_name: str) -> np.ndarray:
-    """
-    Generates a stable random vector for a specific genre string.
-    
-    How it works:
-    1. Hashes the genre name (e.g., "pop") into a unique fingerprint.
-    2. Uses that fingerprint as a Seed for the random number generator.
-    3. Generates the vector.
-    
-    Result: "pop" always produces the exact same vector, every time,
-    on any machine, without needing a hardcoded dictionary.
-    """
-    # 1. Create a hash from the string
-    hash_object = hashlib.md5(genre_name.encode())
-    
-    # 2. Convert hash to an integer seed (keeping it within valid 32-bit range)
-    seed = int(hash_object.hexdigest(), 16) % (2**32)
-    
-    # 3. Create a generator with that seed and produce the 64-dim vector
-    rng = np.random.default_rng(seed)
-    return rng.random(EMBEDDING_DIMENSION)
-
-# 1. TRACK EMBEDDING LOGIC (PCA)
+# 1. TRACK EMBEDDING LOGIC (PCA-based)
 def build_track_matrix(tracks_df: pd.DataFrame):
     """
     Transforms track audio features and genre into 64-dimensional embeddings using PCA.
     """
     
     # 1. Define Features
-    # These are the standard audio features provided by Spotify
     numerical_features = [
         'popularity', 'duration_ms', 'danceability', 'energy', 
         'key', 'loudness', 'mode', 'speechiness', 'acousticness', 
@@ -49,55 +25,50 @@ def build_track_matrix(tracks_df: pd.DataFrame):
         'time_signature'
     ]
     
-    # 'first_genre' comes from our upstream SQL feature engineering task
+    # Only 'first_genre' remains as a purely categorical text field
     categorical_features = ['first_genre']
     
-    # Clean Data: Fill NA values to prevent errors
-    # Numeric gets mean, Categorical gets 'unknown'
+    # Clean Data
     tracks_df[numerical_features] = tracks_df[numerical_features].fillna(tracks_df[numerical_features].mean())
     tracks_df[categorical_features] = tracks_df[categorical_features].fillna('unknown')
 
     # 2. Preprocessing Pipeline
     preprocessor = ColumnTransformer(
         transformers=[
-            # Scale numerical features (normalize distribution)
             ('num', StandardScaler(), numerical_features),
-            # One-Hot Encode categorical features (convert text to binary columns)
             ('cat', OneHotEncoder(handle_unknown='ignore'), categorical_features)
         ],
         remainder='drop' 
     )
 
-    # Fit preprocessor and transform data into a sparse matrix
+    # Fit preprocessor
     X_processed = preprocessor.fit_transform(tracks_df)
     
     # 3. Dimensionality Reduction (PCA)
-    # Compress the massive sparse matrix down to 64 dense features
     pca = PCA(n_components=EMBEDDING_DIMENSION) 
     X_embeddings = pca.fit_transform(X_processed.toarray())
     
-    # Return the embeddings 
     return X_embeddings, None 
 
 
 # 2. USER EMBEDDING LOGIC (Weighted Average)
-def generate_user_vector(genre_weights: dict) -> np.ndarray:
+def generate_user_vector(genre_weights: dict, genre_centroids: dict) -> np.ndarray:
     """
-    Creates a user vector by mixing the stable anchor vectors of their favorite genres.
+    Creates a user vector by mixing the real centroids of genres found in the track data.
     
-    Example
-    Input: {'pop': 0.8, 'rock': 0.2}
-    Output: A 64-dim vector that is 80% 'Pop Vector' and 20% 'Rock Vector'.
+    Args:
+        genre_weights: {'pop': 0.8, 'rock': 0.2} (User's taste)
+        genre_centroids: {'pop': [0.1, ...], 'rock': [0.9, ...]} (Actual average of tracks)
     """
-    # Check for empty dictionaries
     if not genre_weights:
         return np.zeros(EMBEDDING_DIMENSION)
 
     total_vector = np.zeros(EMBEDDING_DIMENSION)
     
     for genre, weight in genre_weights.items():
-        # DYNAMICALLY get the anchor using the hash function
-        anchor = get_genre_anchor(genre)
+        # Get the ACTUAL average vector for this genre from the track data
+        # If the genre doesn't exist in our tracks, use a zero vector (neutral)
+        anchor = genre_centroids.get(genre, np.zeros(EMBEDDING_DIMENSION))
         
         # Add the weighted anchor vector to the total
         total_vector += anchor * weight
