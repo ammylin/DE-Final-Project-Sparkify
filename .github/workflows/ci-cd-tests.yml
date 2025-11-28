@@ -58,7 +58,7 @@ jobs:
         fail_ci_if_error: false
     
     - name: Upload coverage report
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: coverage-report-${{ matrix.python-version }}
         path: htmlcov/
@@ -147,7 +147,7 @@ jobs:
     steps:
     - name: Check build status
       run: |
-        if [ "${{ needs.test.result }}" == "failure" ] || [ "${{ needs.test-edge-cases.result }}" == "failure" ]; then
+        if [[ "${{ needs.test.result }}" == "failure" ]] || [[ "${{ needs.test-edge-cases.result }}" == "failure" ]]; then
           echo "Build failed!"
           exit 1
         fi
