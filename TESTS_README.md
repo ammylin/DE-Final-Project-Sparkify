@@ -17,7 +17,7 @@ Summary
 Quick commands
 --------------
 Install dependencies (recommended inside a virtualenv):
-```bash
+
 This document consolidates all testing-related documentation for the Sparkify recommendation project into a single, comprehensive file. It covers the test scope, how to run tests locally and in CI, fixtures, common troubleshooting, and a verification checklist.
 
 Table of contents
@@ -54,6 +54,20 @@ Table of contents
 
 - `tests/test_integration_edge_cases.py` (28 tests)
 	- End-to-end flow sanity checks (tracks → users → events → recommendations), duplicate handling, timestamp ordering and precision, large-scale count logic, error handling (missing fields, malformed JSON), retry logic simulation, and unicode/special-character handling.
+
+2.5) Testing types — what each category means
+--------------------------------------------
+- **Unit tests** — Fast, isolated tests that validate a single function or small component in isolation. They use mocks for external dependencies (database, network, filesystem). Unit tests are ideal for checking logic such as data validation, filtering, sorting, and math/algorithm correctness. In this repo, most checks inside `test_inference_operations.py` and many in `test_recommendation_model.py` are written as unit tests.
+
+- **Integration tests** — Tests that verify multiple components working together and may require external services (e.g., a PostgreSQL instance). They exercise DB reads/writes, SQL DDL/DML, and full pipeline steps without mocking the external service. Marked with `@pytest.mark.integration` in `conftest.py`. The heavier checks in `test_database_operations.py` and parts of `test_integration_edge_cases.py` are integration-style.
+
+- **End-to-end (E2E)** — Full pipeline runs that simulate realistic usage from ingestion through model training and inference. These tests validate data flow, end-to-end correctness, and system-level behaviour. `test_integration_edge_cases.py` contains several E2E style checks (data flow sanity, event-to-recommendation mapping).
+
+
+Mapping quick reference:
+- Unit: fast checks — most functions in `test_inference_operations.py`, many in `test_recommendation_model.py`.
+- Integration: database and multi-component tests — `test_database_operations.py`, selected tests in `test_integration_edge_cases.py`.
+- E2E: full-data-flow checks — `test_integration_edge_cases.py`.
 
 3) Fixtures & pytest markers
 ---------------------------
@@ -124,7 +138,6 @@ pytest tests/ -m integration -v
 	- Run linters and security scans if configured
 	- Publish coverage reports (HTML / codecov) if desired
 
-If you'd like, I can add a workflow file or a status badge to the top-level `README.md`.
 
 7) Troubleshooting
 ------------------
@@ -147,11 +160,5 @@ If you'd like, I can add a workflow file or a status badge to the top-level `REA
 - Mark tests requiring external services with `@pytest.mark.integration` or `@pytest.mark.database`.
 - Keep tests small and focused; for heavy end-to-end checks, mark as `slow` or place under `integration`.
 
-Contact / Next steps
---------------------
-Tell me if you want any of the following:
-- Add a GitHub Actions workflow to run these tests
-- Add a status badge to `README.md`
-- Merge this file into the top-level `README.md` and remove `TESTING_QUICKSTART.md`
 
 Last updated: November 28, 2025
