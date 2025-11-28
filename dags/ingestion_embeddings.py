@@ -36,7 +36,7 @@ default_args = {
 }
 
 with DAG(
-    dag_id="music_data_pipeline",
+    dag_id="ingestion_embeddings",
     start_date=datetime(2025, 11, 25),
     schedule="@daily",
     catchup=False,
@@ -609,32 +609,37 @@ with DAG(
         Task 7: Compute 64-dim embeddings for all tracks and UPDATE the tracks table.
         """
         conn = get_connection()
-        tracks_df = pd.read_sql("SELECT t.*, g.first_genre FROM music_analytics.tracks t JOIN music_analytics.track_primary_genre g ON t.track_id = g.track_id;", conn)
+        tracks_df = pd.read_sql(
+            "SELECT t.*, g.first_genre FROM music_analytics.tracks t JOIN music_analytics.track_primary_genre g ON t.track_id = g.track_id;",
+            conn,
+        )
         conn.close()
 
         print(f"Generating embeddings for {len(tracks_df)} tracks...")
-        
+
         # Embedding calculation
         X_embeddings, _ = build_track_matrix(tracks_df)
-        tracks_df['track_embedding'] = [vec.tolist() for vec in X_embeddings] 
+        tracks_df["track_embedding"] = [vec.tolist() for vec in X_embeddings]
 
         conn = get_connection()
         cur = conn.cursor()
-        
+
         # Update each track with its embedding
         for _, row in tracks_df.iterrows():
             embedding_list = row["track_embedding"]
             vector_content = ",".join(str(f"{x:.10f}").strip() for x in embedding_list)
             embedding_str = f"[{vector_content}]"
-            embedding_str = embedding_str.replace(' ', '')
-            
+            embedding_str = embedding_str.replace(" ", "")
+
             cur.execute(
                 """
                 UPDATE music_analytics.tracks SET track_embedding = %s WHERE track_id = %s;
                 """,
                 (embedding_str, row["track_id"]),
             )
-        conn.commit(); cur.close(); conn.close()
+        conn.commit()
+        cur.close()
+        conn.close()
         print(f"Computed and updated {len(tracks_df)} track embeddings.")
 
     @task
@@ -645,62 +650,74 @@ with DAG(
         conn = get_connection()
 
         print("Fetching track embeddings to calculate genre centroids...")
-        tracks_df = pd.read_sql("""
+        tracks_df = pd.read_sql(
+            """
             SELECT t.track_embedding, g.first_genre 
             FROM music_analytics.tracks t 
             JOIN music_analytics.track_primary_genre g ON t.track_id = g.track_id 
             WHERE t.track_embedding IS NOT NULL;
-        """, conn)
+        """,
+            conn,
+        )
 
         # Helper to parse vector strings back to arrays
         def parse_pgvector(s):
             # Clean string format: "(0.1,0.2,...)" -> numpy array
-            clean_str = s.replace('[', '').replace(']', '').replace('(', '').replace(')', '')
-            return np.fromstring(clean_str, sep=',')
-        
+            clean_str = (
+                s.replace("[", "").replace("]", "").replace("(", "").replace(")", "")
+            )
+            return np.fromstring(clean_str, sep=",")
+
         genre_centroids = {}
         if not tracks_df.empty:
-            tracks_df['vector'] = tracks_df['track_embedding'].apply(parse_pgvector)
+            tracks_df["vector"] = tracks_df["track_embedding"].apply(parse_pgvector)
             # Calculate the average vector for each genre
-            centroids_df = tracks_df.groupby('first_genre')['vector'].apply(lambda x: np.mean(np.vstack(x), axis=0))
+            centroids_df = tracks_df.groupby("first_genre")["vector"].apply(
+                lambda x: np.mean(np.vstack(x), axis=0)
+            )
             genre_centroids = centroids_df.to_dict()
             print(f"Calculated centroids for {len(genre_centroids)} genres.")
         else:
             print("WARNING: No track embeddings found. User vectors will be zero.")
 
-        users_df = pd.read_sql("SELECT user_id, genre_weights FROM music_analytics.users;", conn)
+        users_df = pd.read_sql(
+            "SELECT user_id, genre_weights FROM music_analytics.users;", conn
+        )
         conn.close()
-        
+
         def parse_weights(weights_json):
-            if isinstance(weights_json, str): return json.loads(weights_json)
+            if isinstance(weights_json, str):
+                return json.loads(weights_json)
             return weights_json
 
-        users_df['weights_dict'] = users_df['genre_weights'].apply(parse_weights)
+        users_df["weights_dict"] = users_df["genre_weights"].apply(parse_weights)
         print(f"Generating embeddings for {len(users_df)} users...")
 
         # Embedding calculation
-        users_df['user_embedding'] = users_df['weights_dict'].apply(
+        users_df["user_embedding"] = users_df["weights_dict"].apply(
             lambda w: generate_user_vector(w, genre_centroids).tolist()
         )
 
         conn = get_connection()
         cur = conn.cursor()
-        
+
         # Update each user with their embedding
         for _, row in users_df.iterrows():
             embedding_list = row["user_embedding"]
-            
+
             vector_content = ",".join(str(f"{x:.10f}").strip() for x in embedding_list)
             embedding_str = f"[{vector_content}]"
-            embedding_str = embedding_str.replace(' ', '')
-            
+            embedding_str = embedding_str.replace(" ", "")
+
             cur.execute(
                 """
                 UPDATE music_analytics.users SET user_embedding = %s WHERE user_id = %s;
                 """,
                 (embedding_str, row["user_id"]),
             )
-        conn.commit(); cur.close(); conn.close()
+        conn.commit()
+        cur.close()
+        conn.close()
         print(f"Computed and updated {len(users_df)} user embeddings.")
 
     @task
@@ -710,40 +727,52 @@ with DAG(
         """
         print("Loading final embeddings from enhanced tables...")
         conn = get_connection()
-        
+
         # 1. Load Data
-        track_df = pd.read_sql("SELECT track_id, track_embedding, track_name, primary_artist FROM music_analytics.tracks WHERE track_embedding IS NOT NULL;", conn)
-        user_df = pd.read_sql("SELECT user_id, user_embedding FROM music_analytics.users WHERE user_embedding IS NOT NULL;", conn)
+        track_df = pd.read_sql(
+            "SELECT track_id, track_embedding, track_name, primary_artist FROM music_analytics.tracks WHERE track_embedding IS NOT NULL;",
+            conn,
+        )
+        user_df = pd.read_sql(
+            "SELECT user_id, user_embedding FROM music_analytics.users WHERE user_embedding IS NOT NULL;",
+            conn,
+        )
         conn.close()
-        
+
         # 2. HELPER: Parse Postgres vector string "(0.1, 0.2)" -> NumPy Array
         def parse_pgvector(s):
-            clean_str = s.replace('(', '').replace(')', '')
-            return np.fromstring(clean_str, sep=',')
+            clean_str = s.replace("(", "").replace(")", "")
+            return np.fromstring(clean_str, sep=",")
 
         print("Converting to NumPy Matrices...")
 
         # 3. Create User Dictionary (User ID -> Vector)
-        user_map = dict(zip(
-            user_df['user_id'], 
-            user_df['user_embedding'].apply(parse_pgvector)
-        ))
+        user_map = dict(
+            zip(user_df["user_id"], user_df["user_embedding"].apply(parse_pgvector))
+        )
 
         # 4. Create Track Matrix (mapping of Row Index -> Track Metadata)
-        track_ids = track_df['track_id'].tolist()
-        track_meta = track_df[['track_id', 'track_name', 'primary_artist']].to_dict(orient='records')
-        
+        track_ids = track_df["track_id"].tolist()
+        track_meta = track_df[["track_id", "track_name", "primary_artist"]].to_dict(
+            orient="records"
+        )
+
         # Stack all vectors into one giant 2D Matrix (N_tracks x 64)
-        track_matrix = np.vstack(track_df['track_embedding'].apply(parse_pgvector).values)
+        track_matrix = np.vstack(
+            track_df["track_embedding"].apply(parse_pgvector).values
+        )
 
         # 5. Save everything in a structured dictionary
         pickle_path = "/opt/airflow/data/recommendation_model.pkl"
         with open(pickle_path, "wb") as f:
-            pickle.dump({
-                "user_map": user_map,          # Fast lookup for User Vector
-                "track_matrix": track_matrix,  # The giant Matrix for Cosine Sim
-                "track_meta": track_meta       # Metadata to display results
-            }, f)
+            pickle.dump(
+                {
+                    "user_map": user_map,  # Fast lookup for User Vector
+                    "track_matrix": track_matrix,  # The giant Matrix for Cosine Sim
+                    "track_meta": track_meta,  # Metadata to display results
+                },
+                f,
+            )
 
         print(f"Model embedding artifact saved at: {pickle_path}")
         return pickle_path
@@ -753,11 +782,11 @@ with DAG(
     verify_tables = verify_postgres_tables()
     create_tracks_table = generate_tracks_table()
     create_users_table = generate_users()
-    create_events_table = generate_listening_events()
-    add_embedding_cols = add_embedding_columns() 
+    create_events_table = generate_listening_events(events_per_user=15)
+    add_embedding_cols = add_embedding_columns()
     create_tracks_primary_genre_table = create_track_primary_genre_table()
     create_users_genre_table = create_user_genre_table()
-    
+
     compute_track_embeds = compute_track_embeddings()
     compute_user_embeds = compute_user_embeddings()
     build_and_save_pickle = build_and_save_model_pickle()
@@ -770,10 +799,7 @@ with DAG(
     # Workflow orchestration
     # Setup chain
     setup_chain = (
-        create_tables 
-        >> verify_tables 
-        >> create_tracks_table 
-        >> create_users_table 
+        create_tables >> verify_tables >> create_tracks_table >> create_users_table
     )
 
     # Setup -> Prep (Task >> List is okay)
@@ -791,128 +817,123 @@ with DAG(
         f_task >> compute_track_embeds
 
     # Embedding Sequence (Task >> Task >> Task)
-    (
-        compute_track_embeds 
-        >> compute_user_embeds 
-        >> build_and_save_pickle
-    )
+    (compute_track_embeds >> compute_user_embeds >> build_and_save_pickle)
 
 
-
-'''
+"""
 The below code is commented out because we are using a different approach for recommendations.
-'''
-    # @task()
-    # def create_users_with_recommendations_table():
-    #     """
-    #         Task 6: Create a table that assigns track recommendations to each user
-    #     based on their favorite genres and available tracks per genre
-    #     """
-    #     create_table_sql = """
-    #     CREATE TABLE IF NOT EXISTS music_analytics.users_with_recommendations AS
-    #     WITH user_track_candidates AS (
-    #         SELECT 
-    #             ug.user_id,
-    #             ug.genre,
-    #             tpg.track_id,
-    #             ROW_NUMBER() OVER (PARTITION BY ug.user_id, ug.genre ORDER BY RANDOM()) AS rn
-    #         FROM music_analytics.user_genres ug
-    #         JOIN music_analytics.track_primary_genre tpg 
-    #             ON ug.genre = tpg.first_genre
-    #     ),
-    #     tracks_per_user_genre AS (
-    #         SELECT 
-    #             user_id,
-    #             genre,
-    #             ARRAY_AGG(track_id) AS track_ids
-    #         FROM user_track_candidates
-    #         WHERE rn <= 2
-    #         GROUP BY user_id, genre
-    #     )
-    #     SELECT 
-    #         u.*,
-    #         jsonb_object_agg(tpg.genre, to_jsonb(tpg.track_ids)) AS genre_track_recommendations
-    #     FROM music_analytics.users u
-    #     JOIN tracks_per_user_genre tpg ON u.user_id = tpg.user_id
-    #     GROUP BY u.user_id, u.age, u.country, u.favorite_genres, u.genre_weights, u.created_at;
-    #     """
+"""
+# @task()
+# def create_users_with_recommendations_table():
+#     """
+#         Task 6: Create a table that assigns track recommendations to each user
+#     based on their favorite genres and available tracks per genre
+#     """
+#     create_table_sql = """
+#     CREATE TABLE IF NOT EXISTS music_analytics.users_with_recommendations AS
+#     WITH user_track_candidates AS (
+#         SELECT
+#             ug.user_id,
+#             ug.genre,
+#             tpg.track_id,
+#             ROW_NUMBER() OVER (PARTITION BY ug.user_id, ug.genre ORDER BY RANDOM()) AS rn
+#         FROM music_analytics.user_genres ug
+#         JOIN music_analytics.track_primary_genre tpg
+#             ON ug.genre = tpg.first_genre
+#     ),
+#     tracks_per_user_genre AS (
+#         SELECT
+#             user_id,
+#             genre,
+#             ARRAY_AGG(track_id) AS track_ids
+#         FROM user_track_candidates
+#         WHERE rn <= 2
+#         GROUP BY user_id, genre
+#     )
+#     SELECT
+#         u.*,
+#         jsonb_object_agg(tpg.genre, to_jsonb(tpg.track_ids)) AS genre_track_recommendations
+#     FROM music_analytics.users u
+#     JOIN tracks_per_user_genre tpg ON u.user_id = tpg.user_id
+#     GROUP BY u.user_id, u.age, u.country, u.favorite_genres, u.genre_weights, u.created_at;
+#     """
 
-    #     try:
-    #         conn = get_connection()
-    #         cur = conn.cursor()
-    #         cur.execute(create_table_sql)
-    #         conn.commit()
-    #         cur.close()
-    #         conn.close()
-    #         print(
-    #             "Table music_analytics.users_with_recommendations created successfully"
-    #         )
-    #     except Exception as e:
-    #         print(f"Error creating table users_with_recommendations: {e}")
-    #         raise
+#     try:
+#         conn = get_connection()
+#         cur = conn.cursor()
+#         cur.execute(create_table_sql)
+#         conn.commit()
+#         cur.close()
+#         conn.close()
+#         print(
+#             "Table music_analytics.users_with_recommendations created successfully"
+#         )
+#     except Exception as e:
+#         print(f"Error creating table users_with_recommendations: {e}")
+#         raise
 
-    # @task
-    # def build_and_save_model_pickle():
-    #     """Task 7: Build the track feature matrix and save the pickle"""
+# @task
+# def build_and_save_model_pickle():
+#     """Task 7: Build the track feature matrix and save the pickle"""
 
-    #     print("Loading tracks from PostgreSQL...")
-    #     conn = get_connection()
-    #     tracks_df = pd.read_sql("SELECT * FROM music_analytics.tracks;", conn)
-    #     conn.close()
-    #     print(f"Loaded {len(tracks_df)} tracks")
+#     print("Loading tracks from PostgreSQL...")
+#     conn = get_connection()
+#     tracks_df = pd.read_sql("SELECT * FROM music_analytics.tracks;", conn)
+#     conn.close()
+#     print(f"Loaded {len(tracks_df)} tracks")
 
-    #     # Build track matrix X and scaler
-    #     print("Building track feature matrix...")
-    #     X, scaler = build_track_matrix(tracks_df)
+#     # Build track matrix X and scaler
+#     print("Building track feature matrix...")
+#     X, scaler = build_track_matrix(tracks_df)
 
-    #     # Keep only necessary track info
-    #     tracks_df_subset = tracks_df[
-    #         ["track_id", "track_name", "primary_artist", "genre_single", "popularity"]
-    #     ]
+#     # Keep only necessary track info
+#     tracks_df_subset = tracks_df[
+#         ["track_id", "track_name", "primary_artist", "genre_single", "popularity"]
+#     ]
 
-    #     # Save pickle
-    #     pickle_path = "/opt/airflow/data/recommendation_model.pkl"
-    #     with open(pickle_path, "wb") as f:
-    #         pickle.dump({"X": X, "scaler": scaler, "tracks_df": tracks_df_subset}, f)
+#     # Save pickle
+#     pickle_path = "/opt/airflow/data/recommendation_model.pkl"
+#     with open(pickle_path, "wb") as f:
+#         pickle.dump({"X": X, "scaler": scaler, "tracks_df": tracks_df_subset}, f)
 
-    #     print(f"Model pickle saved at: {pickle_path}")
-    #     return pickle_path
+#     print(f"Model pickle saved at: {pickle_path}")
+#     return pickle_path
 
-    # # @task()
-    # # def load_model_pickle(
-    # #     pickle_path: str = "/opt/airflow/data/recommendation_model.pkl",
-    # # ):
-    # #     """Task 7: Return the path to the pickle file"""
-    # #     if not os.path.exists(pickle_path):
-    # #         raise FileNotFoundError(f"Pickle not found at {pickle_path}")
-    # #     return pickle_path
+# # @task()
+# # def load_model_pickle(
+# #     pickle_path: str = "/opt/airflow/data/recommendation_model.pkl",
+# # ):
+# #     """Task 7: Return the path to the pickle file"""
+# #     if not os.path.exists(pickle_path):
+# #         raise FileNotFoundError(f"Pickle not found at {pickle_path}")
+# #     return pickle_path
 
-    # create_tables = create_postgres_tables()
-    # verify_tables = verify_postgres_tables()
-    # create_tracks_table = generate_tracks_table()
-    # create_tracks_primary_genre_table = create_track_primary_genre_table()
-    # create_users_table = generate_users(n_users=2000)
-    # create_events_table = generate_listening_events(
-    #     events_per_user=10, use_popularity_weights=True
-    # )
-    # create_users_genre_table = create_user_genre_table()
-    # add_embedding_columns = add_embedding_columns()
-    # # create_users_recommendations_table = create_users_with_recommendations_table()
-    # # build_and_save_pickle = build_and_save_model_pickle()
-    # # load_pickle = load_model_pickle()
+# create_tables = create_postgres_tables()
+# verify_tables = verify_postgres_tables()
+# create_tracks_table = generate_tracks_table()
+# create_tracks_primary_genre_table = create_track_primary_genre_table()
+# create_users_table = generate_users(n_users=2000)
+# create_events_table = generate_listening_events(
+#     events_per_user=10, use_popularity_weights=True
+# )
+# create_users_genre_table = create_user_genre_table()
+# add_embedding_columns = add_embedding_columns()
+# # create_users_recommendations_table = create_users_with_recommendations_table()
+# # build_and_save_pickle = build_and_save_model_pickle()
+# # load_pickle = load_model_pickle()
 
-    # # debug_postgres_connection()
+# # debug_postgres_connection()
 
-    # # Set the workflow
-    # (
-    #     create_tables
-    #     >> verify_tables
-    #     >> create_tracks_table
-    #     >> create_users_table
-    #     >> create_tracks_primary_genre_table
-    #     >> [create_events_table, create_users_genre_table]
-    #     >> add_embedding_columns
-    #     # >> create_users_recommendations_table
-    #     # >> build_and_save_pickle
-    #     # >> load_pickle
-    # )
+# # Set the workflow
+# (
+#     create_tables
+#     >> verify_tables
+#     >> create_tracks_table
+#     >> create_users_table
+#     >> create_tracks_primary_genre_table
+#     >> [create_events_table, create_users_genre_table]
+#     >> add_embedding_columns
+#     # >> create_users_recommendations_table
+#     # >> build_and_save_pickle
+#     # >> load_pickle
+# )
