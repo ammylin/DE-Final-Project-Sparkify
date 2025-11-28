@@ -55,6 +55,14 @@ Table of contents
 - `tests/test_integration_edge_cases.py` (28 tests)
 	- End-to-end flow sanity checks (tracks → users → events → recommendations), duplicate handling, timestamp ordering and precision, large-scale count logic, error handling (missing fields, malformed JSON), retry logic simulation, and unicode/special-character handling.
 
+- `tests/test_unit_synthetic_and_recommendations.py` (3 tests)
+	- Unit tests that **call actual implementation functions** from `py_and_notebooks/` (not inline ad-hoc checks). Validates:
+	  - `generate_users()`: produces CSV with correct structure (user_id, age, country, favorite_genres, genre_weights), row counts, no-null PKs, and valid JSON.
+	  - `generate_listening_events()`: produces CSV with required columns (event_id, user_id, timestamp, track_id, track_name) and verifies events are generated.
+	  - `build_track_matrix()`, `recommend_for_user()`, `recommend_for_all_users()`: verifies recommendations return top_k results, exclude already-listened tracks, and have expected DataFrame columns.
+	- Uses `importlib` to import scripts from `py_and_notebooks/04_synthetic_users.py` and `04_synthetic_events.py` (numeric prefixes require special loader).
+	- Run with: `pytest tests/test_unit_synthetic_and_recommendations.py -q`
+
 ### 2.1) Testing types — what each category means ###
 --------------------------------------------
 - **Unit tests** — Fast, isolated tests that validate a single function or small component in isolation. They use mocks for external dependencies (database, network, filesystem). Unit tests are ideal for checking logic such as data validation, filtering, sorting, and math/algorithm correctness. In this repo, most checks inside `test_inference_operations.py` and many in `test_recommendation_model.py` are written as unit tests.
@@ -153,7 +161,7 @@ pytest tests/ -m integration -v
 - [ ] Generate coverage: `pytest tests/ --cov --cov-report=html` and open `htmlcov/index.html`
 - [ ] Confirm CI passes for the branch in GitHub Actions
 
-## 9) Contribution guidelines for tests ##
+9) Contribution guidelines for tests
 -----------------------------------
 - Name test files `test_<feature>.py` and test functions `test_<unit>_<condition>`.
 - Use fixtures for common setup and avoid global state.
@@ -162,3 +170,4 @@ pytest tests/ -m integration -v
 
 
 Last updated: November 28, 2025
+
