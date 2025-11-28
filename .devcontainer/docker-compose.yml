@@ -41,7 +41,7 @@ x-airflow-common: &airflow-common
 
 services:
   db:
-    image: ankane/pgvector:16
+    image: pgvector/pgvector:pg16
     env_file:
       - db.env
     ports:
