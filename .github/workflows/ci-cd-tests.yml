@@ -38,12 +38,11 @@ jobs:
     
     - name: Run unit tests
       run: |
-        pytest tests/ -v --tb=short -m unit
+        pytest tests/ -v --tb=short --ignore=tests/test_integration_edge_cases.py
     
     - name: Run integration tests
       run: |
-        pytest tests/ -v --tb=short -m integration
-      continue-on-error: true
+        pytest tests/test_integration_edge_cases.py -v --tb=short
     
     - name: Generate coverage report
       run: |
