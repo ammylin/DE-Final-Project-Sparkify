@@ -32,7 +32,7 @@ Table of contents
 8. Verification checklist
 9. Contribution guidelines for tests
 
-1) Summary
+## 1) Summary ##
 ----------
 - Total tests (current): **78**
 - Main test modules (under `tests/`):
@@ -41,7 +41,7 @@ Table of contents
 	- `test_inference_operations.py` — inference pipeline
 	- `test_integration_edge_cases.py` — end-to-end and edge cases
 
-2) Test modules & short descriptions
+## 2) Test modules & short descriptions ##
 -----------------------------------
 - `tests/test_database_operations.py` (13 tests)
 	- Validates SQL-based table creation, verification of table existence, CSV loading logic (tracks), synthetic user generation, events generation, and basic data validation (ranges, nulls).
@@ -55,7 +55,15 @@ Table of contents
 - `tests/test_integration_edge_cases.py` (28 tests)
 	- End-to-end flow sanity checks (tracks → users → events → recommendations), duplicate handling, timestamp ordering and precision, large-scale count logic, error handling (missing fields, malformed JSON), retry logic simulation, and unicode/special-character handling.
 
-2.5) Testing types — what each category means
+- `tests/test_unit_synthetic_and_recommendations.py` (3 tests)
+	- Unit tests that **call actual implementation functions** from `py_and_notebooks/` (not inline ad-hoc checks). Validates:
+	  - `generate_users()`: produces CSV with correct structure (user_id, age, country, favorite_genres, genre_weights), row counts, no-null PKs, and valid JSON.
+	  - `generate_listening_events()`: produces CSV with required columns (event_id, user_id, timestamp, track_id, track_name) and verifies events are generated.
+	  - `build_track_matrix()`, `recommend_for_user()`, `recommend_for_all_users()`: verifies recommendations return top_k results, exclude already-listened tracks, and have expected DataFrame columns.
+	- Uses `importlib` to import scripts from `py_and_notebooks/04_synthetic_users.py` and `04_synthetic_events.py` (numeric prefixes require special loader).
+	- Run with: `pytest tests/test_unit_synthetic_and_recommendations.py -q`
+
+### 2.1) Testing types — what each category means ###
 --------------------------------------------
 - **Unit tests** — Fast, isolated tests that validate a single function or small component in isolation. They use mocks for external dependencies (database, network, filesystem). Unit tests are ideal for checking logic such as data validation, filtering, sorting, and math/algorithm correctness. In this repo, most checks inside `test_inference_operations.py` and many in `test_recommendation_model.py` are written as unit tests.
 
@@ -69,7 +77,7 @@ Mapping quick reference:
 - Integration: database and multi-component tests — `test_database_operations.py`, selected tests in `test_integration_edge_cases.py`.
 - E2E: full-data-flow checks — `test_integration_edge_cases.py`.
 
-3) Fixtures & pytest markers
+## 3) Fixtures & pytest markers ##
 ---------------------------
 - All shared fixtures live in `tests/conftest.py` and include:
 	- `sample_tracks`, `sample_users`, `sample_events`, `sample_recommendations`
@@ -78,7 +86,7 @@ Mapping quick reference:
 - Markers registered in `conftest.py`:
 	- `unit`, `integration`, `slow`, `database`
 
-4) How to run tests (local)
+## 4) How to run tests (local) ##
 ---------------------------
 Recommended workflow (macOS / zsh):
 
@@ -109,7 +117,7 @@ Convenience
 - `./run_tests.sh` — helper script for common runs (unit/integration/coverage/lint)
 - `Makefile` — targets `make test`, `make test-unit`, `make coverage`, `make lint`, etc.
 
-5) Integration tests & Postgres
+## 5) Integration tests & Postgres ##
 -------------------------------
 - Unit tests use mocks; integration tests may require a running Postgres instance.
 
@@ -130,7 +138,7 @@ export DB_PORT=5432
 pytest tests/ -m integration -v
 ```
 
-6) CI/CD notes
+## 6) CI/CD notes ##
 --------------
 - The repo's GitHub Actions workflow should:
 	- Set up Python, install deps, run unit tests
@@ -139,14 +147,14 @@ pytest tests/ -m integration -v
 	- Publish coverage reports (HTML / codecov) if desired
 
 
-7) Troubleshooting
+## 7) Troubleshooting ##
 ------------------
 - `pytest` missing: `pip install pytest` inside activated venv.
 - `psycopg2` build errors: install `psycopg2-binary` or `libpq` via Homebrew and add to PATH.
 - Flaky time-based tests: mock timestamps or use deterministic time fixtures.
 - Missing data files: ensure tests using file fixtures write to `tmp_path` during setup.
 
-8) Verification checklist
+## 8) Verification checklist ##
 -------------------------
 - [ ] Activate venv and run `pip install -r requirements.txt`
 - [ ] `pytest tests/ -v` completes with ~78 tests passing
@@ -162,3 +170,4 @@ pytest tests/ -m integration -v
 
 
 Last updated: November 28, 2025
+
