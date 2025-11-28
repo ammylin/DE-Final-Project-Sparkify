@@ -5,13 +5,12 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 import pytest
+from importlib import util
+import warnings
 
 # Ensure py_and_notebooks modules are importable
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "py_and_notebooks"))
-
-# (no direct _pytest imports required)
-from importlib import util
 
 
 # helper loader to import modules with numeric prefixes
@@ -19,32 +18,41 @@ def load_module(name, rel_path):
     module_path = str(ROOT / rel_path)
     spec = util.spec_from_file_location(name, module_path)
     mod = util.module_from_spec(spec)
-    # Save and restore sys.modules to avoid import conflicts
-    old_modules = sys.modules.copy()
-    try:
-        spec.loader.exec_module(mod)
-    finally:
-        # Restore sys.modules to clean state
-        sys.modules.clear()
-        sys.modules.update(old_modules)
+    spec.loader.exec_module(mod)
     return mod
 
 
+
+# ----- Module loading with separate flags -----
+USERS_EVENTS_LOADED = False
+RECS_LOADED = False
+
+# Load users + events modules
 try:
     _mod_users = load_module("synthetic_users", "py_and_notebooks/04_synthetic_users.py")
     _mod_events = load_module("synthetic_events", "py_and_notebooks/04_synthetic_events.py")
-    _mod_recs = load_module("recommendations", "py_and_notebooks/recommendations.py")
-    
+
     generate_users = _mod_users.generate_users
     generate_listening_events = _mod_events.generate_listening_events
+
+    USERS_EVENTS_LOADED = True
+except Exception as e:
+    warnings.warn(f"Could not load synthetic user/event modules: {e}")
+    USERS_EVENTS_LOADED = False
+
+# Load recommendation module separately (optional)
+try:
+    _mod_recs = load_module("recommendations", "py_and_notebooks/recommendations.py")
     build_track_matrix = _mod_recs.build_track_matrix
     recommend_for_user = _mod_recs.recommend_for_user
     recommend_for_all_users = _mod_recs.recommend_for_all_users
-    MODULES_LOADED = True
+    RECS_LOADED = True
 except Exception as e:
     MODULES_LOADED = False
-    import warnings
-    warnings.warn(f"Could not load recommendation modules: {e}")
+    print("\n================= IMPORT ERROR =================")
+    print("Error while importing recommendations.py:")
+    print(type(e), e)
+    print("================================================\n")
 
 
 def make_sample_songs_csv(path):
@@ -84,7 +92,9 @@ def make_sample_songs_csv(path):
 
 
 def test_generate_users_and_structure(tmp_path):
-    pytest.skip("Skipping due to module import issues") if not MODULES_LOADED else None
+    if not USERS_EVENTS_LOADED:
+        pytest.skip("Skipping user generator test: synthetic modules not loaded")
+
     songs_csv = tmp_path / "songs.csv"
     make_sample_songs_csv(songs_csv)
 
@@ -107,7 +117,9 @@ def test_generate_users_and_structure(tmp_path):
 
 
 def test_generate_listening_events(tmp_path):
-    pytest.skip("Skipping due to module import issues") if not MODULES_LOADED else None
+    if not USERS_EVENTS_LOADED:
+        pytest.skip("Skipping events generator test: synthetic modules not loaded")
+
     songs_csv = tmp_path / "songs.csv"
     make_sample_songs_csv(songs_csv)
 
@@ -132,12 +144,14 @@ def test_generate_listening_events(tmp_path):
     # required columns
     for col in ["event_id", "user_id", "timestamp", "track_id", "track_name"]:
         assert col in ev.columns
-    # timestamps parseable
+    # timestamps not null
     assert ev["timestamp"].notnull().all()
 
 
 def test_recommendation_end_to_end(tmp_path):
-    pytest.skip("Skipping due to module import issues") if not MODULES_LOADED else None
+    if not (USERS_EVENTS_LOADED and RECS_LOADED):
+        pytest.skip("Skipping recommendation tests: modules not fully loaded")
+
     # build small tracks df
     tracks_df = pd.DataFrame({
         "track_id": ["t1", "t2", "t3", "t4"],
