@@ -1,411 +1,157 @@
-# 🎵 Sparkify CI/CD Test Suite - Complete Implementation
+# Sparkify Test Suite — Summary
 
-## 🎉 What's Been Created
+This repository contains the automated tests used by the Sparkify recommendation project. The test suite currently runs **78 tests** across the test files.
 
-A complete, production-ready test suite for the Sparkify music recommendation system with **71 tests**, comprehensive CI/CD pipeline, and detailed documentation.
 
----
+Purpose:
+- Explain how to run tests locally and in CI
+- Provide a short overview of test organization and fixtures
+- Provide quick troubleshooting tips
 
-## 📦 Package Contents
+Summary
+-------
+- Total tests: **78**
+- Test files: `tests/` (several files covering database, model, inference, and integration)
+- Fixtures: defined in `tests/conftest.py`
 
-### Test Modules (4 files, 71 tests)
-
-```
-tests/
-├── test_database_operations.py      (11 tests)  - DAG #1: Database operations
-├── test_recommendation_model.py     (15 tests)  - Model training & embeddings
-├── test_inference_operations.py     (15 tests)  - DAG #2: Inference pipeline
-└── test_integration_edge_cases.py   (30 tests)  - Integration & edge cases
-```
-
-### Configuration & Setup (3 files)
-
-```
-tests/
-├── __init__.py                      - Package marker
-├── conftest.py                      - Pytest fixtures (9 reusable)
-└── pytest.ini                       - Pytest configuration
-```
-
-### Execution Tools (2 files)
-
-```
-├── Makefile                         - 20+ make targets
-└── run_tests.sh                     - Bash script with 8 commands
-```
-
-### CI/CD Pipeline (1 file)
-
-```
-.github/
-└── workflows/
-    └── ci-cd-tests.yml              - GitHub Actions workflow
-```
-
-### Documentation (6 files)
-
-```
-├── tests/README.md                  - Comprehensive testing guide
-├── TESTING_QUICKSTART.md            - 5-minute quick start
-├── TEST_COVERAGE_MAPPING.md         - Maps tests to project plan
-├── TEST_IMPLEMENTATION_SUMMARY.md   - Implementation details
-├── VERIFICATION_CHECKLIST.md        - Verification checklist
-└── requirements.txt                 - Updated with test dependencies
-```
-
-**Total: 17 files, ~5,000 lines of code & documentation** ✅
-
----
-
-## 🧪 Test Coverage
-
-### Test Distribution
-
-| Category | Count | Status |
-|----------|-------|--------|
-| Unit Tests | 60 | ✅ |
-| Integration Tests | 8 | ✅ |
-| Edge Case Tests | 3 | ✅ |
-| **Total** | **71** | ✅ |
-
-### Coverage by Component
-
-#### DAG #1: Training Pipeline ✅
-
-- [x] `create_postgres_tables()` - Creates schema and 3 tables
-- [x] `verify_postgres_tables()` - Confirms tables exist
-- [x] `generate_tracks_table()` - Loads ~500K tracks from CSV
-- [x] `generate_users(n_users=2000)` - Creates 2000 synthetic users
-- [x] `generate_events_table(events_per_user=20)` - Generates 40K events
-- [x] `train_and_save_recommendation_model()` - Trains embeddings, saves model
-
-#### DAG #2: Inference Pipeline ✅
-
-- [x] `create_recommendations_table()` - Creates recommendations table
-- [x] `fetch_random_user_and_history()` - Selects user and gets history
-- [x] `generate_recommendations(top_k=10)` - Computes top-10 recommendations
-- [x] `insert_recommendations()` - Stores recommendations in database
-
-#### Data Integrity ✅
-
-- [x] Range validation (0-100 popularity, 0-1 audio features)
-- [x] Null value handling
-- [x] Type validation
-- [x] Foreign key consistency
-- [x] Timestamp ordering
-
-#### Edge Cases ✅
-
-- [x] Empty datasets
-- [x] Single user/track scenarios
-- [x] Large scale (10K+ users, 100K+ tracks)
-- [x] Special characters and unicode
-- [x] Concurrent requests
-- [x] Error scenarios
-
----
-
-## 🚀 Quick Start
-
-### 1. Install (1 minute)
+Quick commands
+--------------
+Install dependencies (recommended inside a virtualenv):
 ```bash
+This document consolidates all testing-related documentation for the Sparkify recommendation project into a single, comprehensive file. It covers the test scope, how to run tests locally and in CI, fixtures, common troubleshooting, and a verification checklist.
+
+Table of contents
+-----------------
+1. Summary
+2. Test modules & short descriptions
+3. Fixtures and pytest markers
+4. How to run tests (local)
+5. Integration tests and Postgres
+6. CI/CD notes
+7. Troubleshooting
+8. Verification checklist
+9. Contribution guidelines for tests
+
+1) Summary
+----------
+- Total tests (current): **78**
+- Main test modules (under `tests/`):
+	- `test_database_operations.py` — DB schema & data ops
+	- `test_recommendation_model.py` — model & embeddings
+	- `test_inference_operations.py` — inference pipeline
+	- `test_integration_edge_cases.py` — end-to-end and edge cases
+
+2) Test modules & short descriptions
+-----------------------------------
+- `tests/test_database_operations.py` (13 tests)
+	- Validates SQL-based table creation, verification of table existence, CSV loading logic (tracks), synthetic user generation, events generation, and basic data validation (ranges, nulls).
+
+- `tests/test_recommendation_model.py` (18 tests)
+	- Validates track matrix and embedding construction, normalization of features, user vector construction from genre weights, model dict structure, and serialization (pickle) format.
+
+- `tests/test_inference_operations.py` (19 tests)
+	- Validates recommendation table creation SQL, fetch-and-filter behavior for user histories, recommendation structure (ids and scores), score range validation, sorting/top-k logic, duplicate prevention, cosine similarity calculations, and batch similarity utilities.
+
+- `tests/test_integration_edge_cases.py` (28 tests)
+	- End-to-end flow sanity checks (tracks → users → events → recommendations), duplicate handling, timestamp ordering and precision, large-scale count logic, error handling (missing fields, malformed JSON), retry logic simulation, and unicode/special-character handling.
+
+3) Fixtures & pytest markers
+---------------------------
+- All shared fixtures live in `tests/conftest.py` and include:
+	- `sample_tracks`, `sample_users`, `sample_events`, `sample_recommendations`
+	- `embedding_dimension`, `sample_embeddings`, `sample_user_vectors`
+	- `mock_db_connection` (MagicMock conn + cursor), `temp_data_dir` (tmp_path), `test_config`
+- Markers registered in `conftest.py`:
+	- `unit`, `integration`, `slow`, `database`
+
+4) How to run tests (local)
+---------------------------
+Recommended workflow (macOS / zsh):
+
+```bash
+# create + activate virtualenv
+python3 -m venv .venv
+source .venv/bin/activate
+
+# install deps
+pip install --upgrade pip
 pip install -r requirements.txt
-```
 
-### 2. Run Tests (1 minute)
-```bash
-# Option A: Make (recommended)
-make test
-
-# Option B: Bash script
-chmod +x run_tests.sh
-./run_tests.sh all
-
-# Option C: Pytest directly
+# run full suite
 pytest tests/ -v
+
+# run unit tests only
+pytest tests/ -m unit -v
+
+# run a single module
+pytest tests/test_inference_operations.py -q
+
+# run tests in parallel (requires pytest-xdist)
+pytest tests/ -n auto -v
 ```
 
-### 3. View Results (1 minute)
-```bash
-# Coverage report
-make coverage
-# Opens: htmlcov/index.html
-```
+Convenience
+-----------
+- `./run_tests.sh` — helper script for common runs (unit/integration/coverage/lint)
+- `Makefile` — targets `make test`, `make test-unit`, `make coverage`, `make lint`, etc.
 
----
+5) Integration tests & Postgres
+-------------------------------
+- Unit tests use mocks; integration tests may require a running Postgres instance.
 
-## 📊 Test Statistics
-
-```
-Total Tests:              71
-├── Test Files:           4
-├── Test Classes:        13
-├── Test Functions:      71
-├── Fixtures:             9
-├── Lines of Test Code: 2,500
-└── Documentation:      1,500
-
-Test Execution Time:   ~10-20 seconds
-Code Coverage:         ~85%+ target
-CI/CD Runs:            Automatic on git push
-```
-
----
-
-## 🔧 Execution Methods
-
-### Method 1: Make (Recommended)
-```bash
-make help              # Show all targets
-make test              # Run all tests
-make test-unit         # Unit tests only
-make coverage          # Coverage report
-make lint              # Code quality
-make format            # Format code
-make ci                # Full CI simulation
-```
-
-### Method 2: Bash Script
-```bash
-chmod +x run_tests.sh
-./run_tests.sh help         # Show commands
-./run_tests.sh all          # All tests
-./run_tests.sh unit         # Unit tests
-./run_tests.sh coverage     # Coverage report
-./run_tests.sh lint         # Linting
-./run_tests.sh format       # Format code
-```
-
-### Method 3: Pytest Directly
-```bash
-pytest tests/ -v                                    # All tests
-pytest tests/ -m unit                              # Unit tests
-pytest tests/test_database_operations.py -v        # Specific file
-pytest tests/test_database_operations.py::TestDatabaseOperations -v  # Specific class
-pytest tests/ --cov --cov-report=html              # Coverage
-pytest tests/ -n auto                              # Parallel
-```
-
-### Method 4: GitHub Actions (Automatic)
-```bash
-git push origin main  # Automatically triggers CI/CD
-# View results at: github.com/repo/actions
-```
-
----
-
-## 📋 Test Map to Project Plan
-
-### Training Pipeline Tests
-
-**test_database_operations.py (11 tests)**
-- Creates empty tables in PostgreSQL ✅
-- Verifies all tables exist ✅
-- Loads tracks from CSV ✅
-
-**test_recommendation_model.py (15 tests)**
-- Generates user vectors from preferences ✅
-- Creates track embeddings ✅
-- Trains and serializes model ✅
-
-### Inference Pipeline Tests
-
-**test_inference_operations.py (15 tests)**
-- Creates recommendations table ✅
-- Fetches random user and history ✅
-- Generates recommendations ✅
-- Validates scores and filters results ✅
-
-### Integration Tests
-
-**test_integration_edge_cases.py (30 tests)**
-- End-to-end pipeline flow ✅
-- Edge cases and boundary conditions ✅
-- Error handling and resilience ✅
-
-See `TEST_COVERAGE_MAPPING.md` for detailed mapping.
-
----
-
-## 📚 Documentation
-
-### For Quick Start (5 min read)
-👉 **TESTING_QUICKSTART.md** - Setup and running tests
-
-### For Comprehensive Guide (20 min read)
-👉 **tests/README.md** - All testing details
-
-### For Test Implementation Details (10 min read)
-👉 **TEST_IMPLEMENTATION_SUMMARY.md** - What was created
-
-### For Mapping to Project Plan (15 min read)
-👉 **TEST_COVERAGE_MAPPING.md** - Links tests to requirements
-
-### For Verification (Checklist)
-👉 **VERIFICATION_CHECKLIST.md** - Verify everything works
-
----
-
-## 🔄 CI/CD Pipeline
-
-### GitHub Actions Workflow
-File: `.github/workflows/ci-cd-tests.yml`
-
-**Triggers on:**
-- ✅ Push to `main` branch
-- ✅ Push to `develop` branch
-- ✅ Pull requests to `main` or `develop`
-
-**Runs:**
-- ✅ Unit tests (Python 3.9, 3.10, 3.11)
-- ✅ Integration tests
-- ✅ Linting (flake8, black, isort)
-- ✅ Security scanning (bandit, safety)
-- ✅ Coverage report (Codecov)
-
-**Status:** Automatic pass/fail on commits
-
----
-
-## 🎯 Key Features
-
-✨ **Comprehensive** - 71 tests covering all components
-🎯 **Focused** - Each test tests one specific thing
-🔄 **Reusable** - Shared fixtures for common test data
-📊 **Measurable** - Coverage reporting and metrics
-🛡️ **Resilient** - Error handling and edge cases
-📚 **Documented** - Multiple documentation files
-🚀 **Automated** - GitHub Actions CI/CD
-⚙️ **Flexible** - Multiple execution methods
-🔧 **Maintained** - Easy to extend with new tests
-
----
-
-## ✅ Verification
-
-Quick verification that everything is set up:
+Example setup (macOS/Homebrew):
 
 ```bash
-# 1. Check files exist
-ls tests/test_*.py                  # Should show 4 files
-ls Makefile run_tests.sh           # Should show both
-ls .github/workflows/ci-cd-tests.yml  # Should show workflow
+brew install postgresql
+brew services start postgresql
+createdb test_sparkify
 
-# 2. Install and verify
-pip install -r requirements.txt
-pytest --version
+export DB_NAME=test_sparkify
+export DB_USER=postgres
+export DB_PASSWORD=your_password
+export DB_HOST=localhost
+export DB_PORT=5432
 
-# 3. Run tests
-make test
-
-# 4. Check coverage
-make coverage
+# run integration tests
+pytest tests/ -m integration -v
 ```
 
-For detailed verification, see **VERIFICATION_CHECKLIST.md**
+6) CI/CD notes
+--------------
+- The repo's GitHub Actions workflow should:
+	- Set up Python, install deps, run unit tests
+	- Optionally run integration tests on a self-hosted runner or tagged builds
+	- Run linters and security scans if configured
+	- Publish coverage reports (HTML / codecov) if desired
 
----
+If you'd like, I can add a workflow file or a status badge to the top-level `README.md`.
 
-## 🎓 Using for Your Presentation
+7) Troubleshooting
+------------------
+- `pytest` missing: `pip install pytest` inside activated venv.
+- `psycopg2` build errors: install `psycopg2-binary` or `libpq` via Homebrew and add to PATH.
+- Flaky time-based tests: mock timestamps or use deterministic time fixtures.
+- Missing data files: ensure tests using file fixtures write to `tmp_path` during setup.
 
-### Data Points for Friday (12/5)
-- Total tests created: **71** ✅
-- Test files created: **4** ✅
-- Documentation pages: **6** ✅
-- CI/CD workflow: **1** ✅
-- Code coverage: **~85%+** ✅
+8) Verification checklist
+-------------------------
+- [ ] Activate venv and run `pip install -r requirements.txt`
+- [ ] `pytest tests/ -v` completes with ~78 tests passing
+- [ ] Generate coverage: `pytest tests/ --cov --cov-report=html` and open `htmlcov/index.html`
+- [ ] Confirm CI passes for the branch in GitHub Actions
 
-### Demo Ideas
-1. **Show test execution**: `make test`
-2. **Show coverage report**: `make coverage`
-3. **Show CI/CD workflow**: Point to GitHub Actions
-4. **Show test organization**: Display test files
-5. **Show documentation**: Open QUICKSTART guide
+9) Contribution guidelines for tests
+-----------------------------------
+- Name test files `test_<feature>.py` and test functions `test_<unit>_<condition>`.
+- Use fixtures for common setup and avoid global state.
+- Mark tests requiring external services with `@pytest.mark.integration` or `@pytest.mark.database`.
+- Keep tests small and focused; for heavy end-to-end checks, mark as `slow` or place under `integration`.
 
-### Timeline for Team
-- **Monday 12/1**: Review tests, understand structure
-- **Wednesday 12/3**: Incorporate test results in presentation
-- **Thursday 12/4**: Record demo of tests running
-- **Friday 12/5**: Submit with all tests passing
+Contact / Next steps
+--------------------
+Tell me if you want any of the following:
+- Add a GitHub Actions workflow to run these tests
+- Add a status badge to `README.md`
+- Merge this file into the top-level `README.md` and remove `TESTING_QUICKSTART.md`
 
----
-
-## 📞 Support
-
-**Getting Started?**
-→ Read `TESTING_QUICKSTART.md` (5 minutes)
-
-**Need Details?**
-→ Read `tests/README.md` (comprehensive)
-
-**Want to Verify Setup?**
-→ Use `VERIFICATION_CHECKLIST.md`
-
-**Need Test Mapping?**
-→ See `TEST_COVERAGE_MAPPING.md`
-
-**Specific Command Help?**
-→ Run `make help` or `./run_tests.sh help`
-
----
-
-## 🎬 Next Steps
-
-### Immediate (Today)
-1. Review this file
-2. Run `pip install -r requirements.txt`
-3. Run `make test` to verify setup
-4. Open `TESTING_QUICKSTART.md` for quick start
-
-### This Week
-1. Incorporate test results in presentation
-2. Generate coverage report: `make coverage`
-3. Document any custom changes
-4. Ensure all tests pass before Friday
-
-### Before Friday (12/5)
-1. All tests passing ✅
-2. CI/CD workflow validated ✅
-3. Documentation complete ✅
-4. Ready for presentation ✅
-
----
-
-## 📊 Summary
-
-```
-✅ Test Suite Created:       71 tests in 4 files
-✅ Documentation:           6 comprehensive guides
-✅ CI/CD Pipeline:          GitHub Actions workflow
-✅ Execution Tools:         Make, Bash, pytest
-✅ Coverage Reporting:      HTML reports with metrics
-✅ Code Quality:            Linting and formatting
-✅ Security:                Scanning and checks
-✅ Edge Cases:              30 tests for boundaries
-✅ Error Handling:          Comprehensive error tests
-✅ Integration Tests:       8 tests for workflows
-
-🎉 Ready for Production!
-```
-
----
-
-**Created:** November 28, 2025  
-**For:** Sparkify Final Project (IDS-706)  
-**Team:** Aesha & Jordan (Testing)  
-**Deadline:** Friday, December 5, 2025  
-
-**Status:** ✅ COMPLETE - Ready for presentation and CI/CD integration
-
----
-
-## 🚀 Let's Go!
-
-```bash
-# Start here:
-pip install -r requirements.txt
-make test
-make coverage
-```
-
-Everything is ready. Happy testing! 🎵
+Last updated: November 28, 2025
