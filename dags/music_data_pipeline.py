@@ -767,7 +767,7 @@ with DAG(
     feature_group = [create_events_table, create_users_genre_table]
     embedding_computation_group = [compute_track_embeds, compute_user_embeds]
 
-    # --- WORKFLOW ---
+    # Workflow orchestration
     # Setup chain
     setup_chain = (
         create_tables 

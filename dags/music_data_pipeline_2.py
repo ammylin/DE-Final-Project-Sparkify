@@ -100,7 +100,7 @@ with DAG(
         """
         Task #3: Load the model artifact and compute Cosine Similarity between the specific user vector and ALL track vectors.
         """
-        # --- 1. Load Model Locally ---
+        # 1. Load Model Locally
         if not os.path.exists(pickle_path):
             raise FileNotFoundError(f"Pickle not found at {pickle_path}")
         
@@ -109,7 +109,7 @@ with DAG(
             model_data = pickle.load(f)
         print("Model loaded successfully.")
 
-        # --- 2. Unpack Data ---
+        # 2. Unpack Data
         user_id = user_context["user_id"]
         listened_set = set(user_context["listened_track_ids"])
         
@@ -117,13 +117,13 @@ with DAG(
         track_matrix = model_data["track_matrix"] # Matrix: All Track Vectors (N x 64)
         track_meta = model_data["track_meta"]     # List: Metadata corresponding to matrix rows
         
-        # --- 3. Validation ---
+        # 3. Validation
         if user_id not in user_map:
             raise ValueError(f"User ID {user_id} not found in model artifact.")
         
         user_vector = user_map[user_id] # Shape: (64,)
 
-        # --- 4. Vector Math: Cosine Similarity ---
+        # 4. Vector Math: Cosine Similarity
         
         # Calculate norms (magnitudes)
         user_norm = np.linalg.norm(user_vector)
@@ -140,7 +140,7 @@ with DAG(
         # Final scores
         similarity_scores = dot_products / (user_norm * track_norms)
 
-        # --- 5. Ranking and Filtering ---
+        # 5. Ranking and Filtering
         # Create a list of (index, score) tuples: [(0, 0.98), (1, 0.45), ...]
         scores_with_indices = list(enumerate(similarity_scores))
         
