@@ -210,7 +210,7 @@ services:
   streamlit:
     build:
       context: ..                      # Same context as your Airflow Dockerfile
-      dockerfile: .devcontainer/.Dockerfile
+      dockerfile: .devcontainer/.Dockerfile.streamlit
     command: streamlit run /opt/airflow/dags/streamlit_app.py --server.port 8501 --server.address 0.0.0.0
     environment:
       DB_NAME: musicdb

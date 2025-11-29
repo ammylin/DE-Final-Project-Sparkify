@@ -1,0 +1,19 @@
+FROM python:3.11-slim
+
+# System dependencies for psycopg2
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install dependencies
+COPY dags/requirements-streamlit.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
+
+COPY dags/ /opt/airflow/dags/
+
+EXPOSE 8501
+
+CMD ["streamlit", "run", "/opt/airflow/dags/streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0"]
