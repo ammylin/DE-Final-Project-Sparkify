@@ -24,16 +24,19 @@ def get_connection():
 def load_recommendations():
     conn = get_connection()
     query = """
-        SELECT 
-            recommendation_id,
-            user_id,
-            track_id,
-            track_name,
-            primary_artist,
-            score,
-            timestamp
-        FROM music_analytics.recommendations
-        ORDER BY timestamp DESC;
+        SELECT
+            A.recommendation_id,
+            A.user_id,
+            A.track_id,
+            A.track_name,
+            B.first_genre AS track_genre,
+            A.primary_artist,
+            A.score,
+            A.timestamp
+        FROM music_analytics.recommendations     A
+        JOIN music_analytics.track_primary_genre B
+        ON A.track_id = B.track_id
+        ORDER BY A.timestamp DESC;
     """
     df = pd.read_sql(query, conn)
     conn.close()
@@ -61,29 +64,76 @@ st.set_page_config(page_title="Music Recommendation Dashboard", layout="wide")
 st.title("🎵 Music Recommendation Dashboard")
 st.caption("Data generated automatically by the Airflow DAG `inference`")
 
-df = load_recommendations()
+df_full = load_recommendations()
 last_update = get_last_update()
 
 # Sidebar Filters
 st.sidebar.header("Filters")
-users = df["user_id"].unique()
+users = df_full["user_id"].unique()
 selected_user = st.sidebar.selectbox("Select user:", ["All"] + list(users))
+
+# Create filtered copy
+df_filtered = df_full.copy()
 if selected_user != "All":
-    df = df[df["user_id"] == selected_user]
+    df_filtered = df_full[df_full["user_id"] == selected_user]
 
 # KPI Metrics
 col1, col2, col3 = st.columns(3)
-col1.metric("Total recommendations", len(df))
-col2.metric("Unique users recommended", df["user_id"].nunique())
+col1.metric("Total recommendations", len(df_filtered))
+col2.metric("Unique users recommended", df_full["user_id"].nunique())
 col3.metric("Most recent generation", str(last_update) if last_update else "-")
 
 # Main Table
 st.subheader("🔽 Recommendations table")
-st.dataframe(df, use_container_width=True, height=500)
+st.dataframe(df_filtered, use_container_width=True, height=500)
 
-# Score distribution chart
-st.subheader("📈 Score distribution")
-if len(df):
-    st.bar_chart(df["score"])
+# Global histogram (all users)
+st.subheader("🎨 Genre Distribution (All Users)")
+if "track_genre" in df_full.columns and len(df_full):
+    genre_counts = df_full["track_genre"].value_counts().sort_values(ascending=False)
+    st.bar_chart(genre_counts)
 else:
-    st.info("No data available for this selection.")
+    st.info("No track_genre data available.")
+
+# Per-user histogram
+if selected_user != "All":
+    st.subheader(f"🎨 Genre Distribution for User: {selected_user}")
+    if "track_genre" in df_filtered.columns and len(df_filtered):
+        user_genre_counts = df_filtered["track_genre"].value_counts().sort_values(ascending=False)
+        st.bar_chart(user_genre_counts)
+    else:
+        st.info("No track_genre data available for this user.")
+
+# Global Top Tracks
+st.subheader("🏆 Top Track Names (All Users)")
+if "track_name" in df_full.columns and len(df_full):
+    top_tracks = df_full["track_name"].value_counts().head(20)
+    st.bar_chart(top_tracks)
+else:
+    st.info("No track_name data available.")
+
+# Per-user Top Tracks — only show when a specific user is selected
+if selected_user != "All":
+    st.subheader(f"🏆 Top Track Names for User: {selected_user}")
+    if "track_name" in df_filtered.columns and len(df_filtered):
+        top_tracks_user = df_filtered["track_name"].value_counts().head(20)
+        st.bar_chart(top_tracks_user)
+    else:
+        st.info("No track_name data available for this user.")
+
+# Global Top Artists
+st.subheader("🎤 Top Primary Artists (All Users)")
+if "primary_artist" in df_full.columns and len(df_full):
+    top_artists = df_full["primary_artist"].value_counts().head(20)
+    st.bar_chart(top_artists)
+else:
+    st.info("No primary_artist data available.")
+
+# Per-user Top Artists — only show when a specific user is selected
+if selected_user != "All":
+    st.subheader(f"🎤 Top Primary Artists for User: {selected_user}")
+    if "primary_artist" in df_filtered.columns and len(df_filtered):
+        top_artists_user = df_filtered["primary_artist"].value_counts().head(20)
+        st.bar_chart(top_artists_user)
+    else:
+        st.info("No primary_artist data available for this user.")
