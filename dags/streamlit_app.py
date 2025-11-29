@@ -7,7 +7,7 @@ from streamlit_autorefresh import st_autorefresh
 
 load_dotenv()
 
-# Auto-refresh every 2 minutes (120,000 ms)
+# Auto-refresh every 2 minutes
 st_autorefresh(interval=120_000, key="auto_refresh")
 
 
@@ -112,14 +112,6 @@ if "track_name" in df_full.columns and len(df_full):
 else:
     st.info("No track_name data available.")
 
-# Per-user Top Tracks — only show when a specific user is selected
-if selected_user != "All":
-    st.subheader(f"🏆 Top Track Names for User: {selected_user}")
-    if "track_name" in df_filtered.columns and len(df_filtered):
-        top_tracks_user = df_filtered["track_name"].value_counts().head(20)
-        st.bar_chart(top_tracks_user)
-    else:
-        st.info("No track_name data available for this user.")
 
 # Global Top Artists
 st.subheader("🎤 Top Primary Artists (All Users)")
