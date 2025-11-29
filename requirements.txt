@@ -16,3 +16,7 @@ pytest-cov>=3.0
 pytest-xdist>=2.5
 pytest-timeout>=2.1
 pytest-mock>=3.6
+
+streamlit
+plotly
+streamlit-autorefresh

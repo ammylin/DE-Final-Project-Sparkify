@@ -206,5 +206,28 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
+        
+  streamlit:
+    build:
+      context: ..                      # Same context as your Airflow Dockerfile
+      dockerfile: .devcontainer/.Dockerfile
+    command: streamlit run /opt/airflow/dags/streamlit_app.py --server.port 8501 --server.address 0.0.0.0
+    environment:
+      DB_NAME: musicdb
+      DB_USER: vscode
+      DB_PASSWORD: vscode
+      DB_HOST: db
+      DB_PORT: "5432"
+      _PIP_ADDITIONAL_REQUIREMENTS: "streamlit-autorefresh"
+
+    ports:
+      - "8501:8501"
+    volumes:
+      - ${AIRFLOW_PROJ_DIR:-..}/dags:/opt/airflow/dags
+      - ${AIRFLOW_PROJ_DIR:-..}/data:/opt/airflow/data
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   pg_data:
