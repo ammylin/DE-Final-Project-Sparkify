@@ -149,7 +149,7 @@ with DAG(
         dot_products = track_matrix.dot(user_vector)
 
         # Final scores
-        similarity_scores = dot_products / (user_norm * track_norms) 
+        similarity_scores = dot_products / (user_norm * track_norms)
         print("Dot products:")
         print(dot_products)
         print("Similarity scores:")
@@ -195,7 +195,7 @@ with DAG(
     @task()
     def save_recommendations(rec_data: dict):
         """
-        Task #4: Insert the top 10 recommendations into Postgres.
+        Task #4: Insert the top k recommendations into Postgres.
         """
         user_id = rec_data["user_id"]
         recs = rec_data["recs"]
