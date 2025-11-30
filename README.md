@@ -202,30 +202,70 @@ This table represents the final stage of the pipeline—where embedded features,
 ---
 
 
-## Testing  
-The `tests/` directory includes unit, integration, and end-to-end tests, executed via GitHub Actions.
+# Testing
 
-### **Test Coverage**
-- **Synthetic data generator**
-  - Correct number of users
-  - Correct listening event structure
-  - Valid columns and types
+Our pipeline uses a **two-layer testing strategy** designed for data engineering workflows:  
+(1) fast Python logic tests that run in CI, and  
+(2) runtime validation tasks embedded directly in Airflow to ensure end-to-end data quality.
 
-- **Recommendation model logic**
-  - Track feature matrix creation  
-  - User vector construction  
-  - Multi-genre handling  
-  - Cosine similarity sorting
+---
 
-- **End-to-end pipeline**
-  - Small synthetic dataset flows through:  
-    tracks → embeddings → user vector → recommendations
+## 1. Python Simulation Tests (Logic-Level)
 
-- **CI/CD workflow**
-  - Automatic tests run on pull requests  
-  - Failures block merges
+All Python tests live under:
 
-Testing ensures correctness and stability as the project evolves.
+```
+tests/
+├── conftest.py
+├── test_database_operations.py
+├── test_inference_operations.py
+├── test_recommendation_model.py
+└── test_integration_edge_cases.py
+```
+
+These tests **do not call Airflow tasks**. Instead, they simulate core pipeline logic using small, controlled pandas DataFrames and numpy vectors.
+
+### These tests cover:
+- database operation behavior (mocked connections, schema expectations)  
+- recommendation logic (cosine similarity, ranking, filtering listened tracks)  
+- inference logic (pickle loading, embedding math, missing-user edge cases)  
+- boundary conditions and failure cases (empty histories, malformed embeddings)  
+- shared fixtures for consistent, deterministic test data  
+
+---
+
+## 2. Airflow DAG Validation Tasks (Runtime Data Quality)
+
+In addition to Python tests, each major DAG includes **explicit validation tasks** that run every time the pipeline executes.
+
+Validation logic exists in:
+
+```
+dags/model_pipeline/ingestion_embeddings.py
+dags/model_pipeline/inference.py
+```
+
+### These validators enforce:
+- required Postgres tables exist and contain rows  
+- tracks/users/events tables have correct schema and no duplicate IDs  
+- track and user embeddings are non-null and correctly formatted  
+- the model pickle contains expected structures (`user_map`, `track_matrix`, `track_meta`)  
+- generated recommendations contain valid fields and non-negative scores  
+
+### Why:
+These checks protect the *live* pipeline from corrupted tables, malformed embeddings, broken pickle artifacts, or invalid recommendation output—issues that cannot be detected by offline tests alone.
+
+---
+
+## 3. How Both Layers Work Together
+
+| Layer | Validates | Runs In | Purpose |
+|-------|-----------|---------|---------|
+| **Python Simulation Tests** | Logic and model behavior | Local / CI | Fast, isolated verification of core functions |
+| **Airflow Validation Tasks** | Real data, Postgres state, embeddings, pickle integrity | Airflow runtime | Prevents invalid data from entering production tables |
+
+This hybrid approach ensures both **functional correctness** and **pipeline reliability** without the overhead of executing full DAGs in CI.
+
 
 ## Limitations & Future Work  
 
