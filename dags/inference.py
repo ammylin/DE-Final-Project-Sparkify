@@ -33,6 +33,61 @@ default_args = {
     "retry_delay": timedelta(minutes=2),
 }
 
+# -------------------------------
+# VALIDATION HELPERS
+# -------------------------------
+
+def validate_pickle_model(model_data: dict):
+    """Ensure the model pickle loaded correctly."""
+    required_keys = {"user_map", "track_matrix", "track_meta"}
+    missing = required_keys - model_data.keys()
+    if missing:
+        raise ValueError(f"Model pickle missing keys: {missing}")
+
+    # user_map must be dict
+    if not isinstance(model_data["user_map"], dict):
+        raise TypeError("user_map must be a dictionary.")
+
+    # track_matrix must be 2D numpy array
+    if not isinstance(model_data["track_matrix"], np.ndarray) or model_data["track_matrix"].ndim != 2:
+        raise TypeError("track_matrix must be a 2D NumPy array.")
+
+    # track_meta must be a list of dicts
+    if not (isinstance(model_data["track_meta"], list) and all(isinstance(x, dict) for x in model_data["track_meta"])):
+        raise TypeError("track_meta must be a list of dictionaries.")
+
+    print("Model pickle validation passed.")
+
+
+def validate_recommendations_df(rec_data: dict):
+    """Validate that recommendations produced are correct and non-empty."""
+    user_id = rec_data["user_id"]
+    recs = rec_data["recs"]
+
+    if not isinstance(user_id, str):
+        raise ValueError("user_id must be a string.")
+
+    if not isinstance(recs, list):
+        raise ValueError("recs must be a list.")
+
+    if len(recs) == 0:
+        raise ValueError(f"No recommendations generated for user {user_id}.")
+
+    required_keys = {"track_id", "track_name", "primary_artist", "score"}
+    for r in recs:
+        missing = required_keys - r.keys()
+        if missing:
+            raise ValueError(f"Recommendation missing fields: {missing}")
+
+        # Score validity
+        if not isinstance(r["score"], float):
+            raise TypeError("Score must be a float.")
+        if r["score"] < 0:
+            raise ValueError("Score must be non-negative.")
+
+    print(f"Recommendation validation passed for user {user_id}.")
+
+
 with DAG(
     dag_id="inference",
     start_date=datetime(2025, 11, 25),
@@ -226,16 +281,50 @@ with DAG(
         cur.close()
         conn.close()
         print(f"Successfully saved {len(recs)} recommendations for user {user_id}")
+        
+    # -------------------------------
+    # AIRFLOW VALIDATION TASKS
+    # -------------------------------
+    @task()
+    def validate_model_pickle():
+        """Ensure pickle contains correct structure before inference runs."""
+        if not os.path.exists(pickle_path):
+            raise FileNotFoundError(f"Pickle not found at {pickle_path}")
+
+        with open(pickle_path, "rb") as f:
+            model_data = pickle.load(f)
+
+        validate_pickle_model(model_data)
+
+        return "OK"
+
+
+    @task()
+    def validate_generated_recommendations(rec_data: dict):
+        """Validate that the generated recommendations are correct."""
+        validate_recommendations_df(rec_data)
+        return rec_data
+
+    
 
     # Define the task pipeline
     setup = create_recommendations_table()
+    
+    # Validate model pickle BEFORE inference runs
+    validate_model = validate_model_pickle()
+    
     user_data = fetch_random_user_and_history()
 
     # Generate recommendations depends on both user data and the model file
     recs = generate_recommendations(user_context=user_data)
+    
+    # Validate recommendations BEFORE saving to DB
+    validated_recs = validate_generated_recommendations(recs)   
 
     # Save results depends on generation
     save = save_recommendations(recs)
 
     # Define dependency structure
-    setup >> user_data >> recs >> save
+    # setup >> user_data >> recs >> save
+    setup >> validate_model >> user_data >> recs >> validated_recs >> save
+
