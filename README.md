@@ -80,6 +80,8 @@ The first Airflow DAG (`ingestion_embeddings.py`) is responsible for refreshing 
 - `user_recommendations`
 
 This DAG is the core of the ML pipeline.
+![output](images/successful_dag1.png)
+![output](images/inference-graph.png)
 
 ## DAG #2 — Inference  
 The second DAG or script (`inference.py`) supports **on-demand recommendations**.
@@ -94,6 +96,7 @@ The second DAG or script (`inference.py`) supports **on-demand recommendations**
 - Returns recommendations in a JSON-friendly structure.
 
 This inference layer is used directly by the dashboard and can be triggered programmatically.
+![output](images/successful_dag2.png)
 
 ## Dashboard (Streamlit)  
 `streamlit_app.py` provides an interactive front-end to explore recommendations.
