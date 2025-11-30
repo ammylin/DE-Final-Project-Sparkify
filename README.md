@@ -266,6 +266,73 @@ These checks protect the *live* pipeline from corrupted tables, malformed embedd
 
 This hybrid approach ensures both **functional correctness** and **pipeline reliability** without the overhead of executing full DAGs in CI.
 
+# GitHub Actions CI/CD Workflow
+
+The project uses **GitHub Actions** to automatically run tests, linting, and security checks on every push or pull request to `main` or `develop`. The workflow ensures stability, code quality, and early detection of issues.
+
+The pipeline includes four jobs: **tests**, **lint**, **security**, and **build-status**.
+
+---
+
+## 1. Test Job — Unit Tests & Coverage
+
+Runs the core validation for the recommendation logic, synthetic data functions, and DAG utilities.
+
+**Steps performed:**
+- Install dependencies  
+- Run `flake8` for syntax checks  
+- Execute unit tests:
+
+```bash
+pytest tests/ -v --tb=short --ignore=tests/test_integration_edge_cases.py
+```
+
+- Generate coverage reports  
+- Upload results to Codecov  
+
+**Purpose:** ensure that core logic remains correct and regression-free.
+
+---
+
+## 2. Lint Job — Formatting & Static Analysis
+
+Runs style and formatting tools:
+
+- **isort** for import ordering  
+- **black** for formatting  
+- **pylint** for static analysis  
+
+Lint errors do **not** block merges (`continue-on-error: true`) but provide useful feedback.
+
+---
+
+## 3. Security Job — Vulnerability Checks
+
+Uses:
+
+- **Bandit** to scan Python code  
+- **Safety** to check dependencies  
+
+Findings surface security issues without blocking development.
+
+---
+
+## 4. Build Status Job
+
+Runs after testing and marks the overall workflow as pass/fail based on the test results.
+
+---
+
+## Why It Matters
+
+- Prevents logic regressions  
+- Ensures consistent, high-quality code  
+- Surfaces security risks early  
+- Keeps the development workflow stable and reliable  
+
+This CI/CD pipeline provides automated assurance that every commit maintains the integrity of the project.
+
+
 
 ## Limitations & Future Work  
 
@@ -291,3 +358,99 @@ This hybrid approach ensures both **functional correctness** and **pipeline reli
   - metric learning  
   - autoencoder-based track representations  
 - Add caching and asynchronous inference for scalability.
+
+
+# Setup Instructions
+
+This section describes how to set up the three core components required to run the Sparkify Music Recommendation Pipeline: **PostgreSQL**, **Airflow**, and **Streamlit**.
+
+---
+
+## PostgreSQL Setup
+
+PostgreSQL is the data warehouse used to store:
+- cleaned track metadata  
+- synthetic users  
+- listening events  
+- track embeddings  
+- user recommendations  
+
+### **1. Install PostgreSQL**
+
+**macOS (Homebrew):**
+```bash
+brew install postgresql
+brew services start postgresql
+```
+
+
+### **2. Create the Database**
+```bash
+createdb sparkify
+```
+
+### **3. Configure Environment Variables**
+Create a `.env` file:
+```
+DB_NAME=sparkify
+DB_USER=postgres
+DB_PASSWORD=yourpassword
+DB_HOST=localhost
+DB_PORT=5432
+```
+
+### **4. Test the Connection**
+```bash
+psql -d sparkify -U postgres
+```
+
+---
+
+## Airflow Setup
+
+Airflow orchestrates ingestion, embedding generation, and recommendation refresh.
+With the docker-compose file and .Dockerfile updated with the necessary Airflow configurations, run the following to start the Airflow services, build the image, and staart the container:
+```bash
+cd .devcontainer
+docker compose build --no-cache
+docker compose up -d
+```
+
+Open Airflow UI:  
+http://localhost:8080
+
+### **5. Enable DAGs**
+Turn on:
+- `ingestion_embeddings`  
+- `inference` 
+
+---
+
+## Streamlit Setup
+
+Streamlit hosts the interactive dashboard for exploring recommendations.
+
+### **1. Install Dependencies**
+If using the provided file:
+```bash
+pip install -r requirements-streamlit.txt
+```
+
+### **2. Run the Dashboard**
+```bash
+streamlit run streamlit_app.py
+```
+
+### **3. Access the UI**
+Open:  
+http://localhost:8501
+
+Streamlit will:
+- connect to PostgreSQL  
+- display top tracks, genres, and artists  
+- allow selecting specific users  
+- show the recommendation table  
+
+---
+
+
