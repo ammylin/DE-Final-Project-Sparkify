@@ -18,7 +18,7 @@ The goal is to simulate the infrastructure of a real music analytics platform (�
 
 ## Dataset Background
 
-The song metadata for this project is based on the public Spotify Tracks Dataset found on Kaggle: https://www.kaggle.com/datasets/maharshipandya/-spotify-tracks-dataset. This dataset provides a large collection of tracks along with rich audio features, making it well-suited for building embeddings and powering a recommendation pipeline. This dataset contains about 114,000 rows, where each row represents a single song.
+The song metadata for this project is based on the public [Spotify Tracks Dataset](https://www.kaggle.com/datasets/maharshipandya/-spotify-tracks-dataset) found on Kaggle. This dataset provides a large collection of tracks along with audio features, making it well-suited for building embeddings and powering a recommendation pipeline. This dataset contains about 114,000 rows, where each row represents a single song.
 
 ### Dataset Contents
 
@@ -146,14 +146,12 @@ It aggregates listening events and counts how many times each artist appears as 
 
 - Global popularity patterns across the entire user base  
 - Which artists dominate listening behavior  
-- How synthetic users behave relative to real-world expectations  
 - Whether listening patterns are balanced or skewed toward certain artists  
 
 Below the global chart is a **per-user version** that shows the top primary artists for a selected user. This makes it easy to compare:
 
 - Individual user preferences  
 - Alignment (or misalignment) with global popularity  
-- How personalized the recommendation engine must be to serve each user  
 
 ---
 
@@ -206,7 +204,6 @@ Each row includes:
 - `track_name` — name of the track  
 - `track_genre` — genre of the track  
 - `primary_artist` — primary associated artist  
-- `score` — cosine similarity score  
 - `timestamp` — when the recommendation was generated  
 
 **Why this table matters:**
