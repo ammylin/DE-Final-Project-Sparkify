@@ -37,6 +37,7 @@ default_args = {
 # VALIDATION HELPERS
 # -------------------------------
 
+
 def validate_pickle_model(model_data: dict):
     """Ensure the model pickle loaded correctly."""
     required_keys = {"user_map", "track_matrix", "track_meta"}
@@ -49,11 +50,17 @@ def validate_pickle_model(model_data: dict):
         raise TypeError("user_map must be a dictionary.")
 
     # track_matrix must be 2D numpy array
-    if not isinstance(model_data["track_matrix"], np.ndarray) or model_data["track_matrix"].ndim != 2:
+    if (
+        not isinstance(model_data["track_matrix"], np.ndarray)
+        or model_data["track_matrix"].ndim != 2
+    ):
         raise TypeError("track_matrix must be a 2D NumPy array.")
 
     # track_meta must be a list of dicts
-    if not (isinstance(model_data["track_meta"], list) and all(isinstance(x, dict) for x in model_data["track_meta"])):
+    if not (
+        isinstance(model_data["track_meta"], list)
+        and all(isinstance(x, dict) for x in model_data["track_meta"])
+    ):
         raise TypeError("track_meta must be a list of dictionaries.")
 
     print("Model pickle validation passed.")
@@ -91,7 +98,7 @@ def validate_recommendations_df(rec_data: dict):
 with DAG(
     dag_id="inference",
     start_date=datetime(2025, 11, 25),
-    schedule="*/2 * * * *",
+    schedule="*/1 * * * *",
     catchup=False,
     default_args=default_args,
     description="Complete music data pipeline - Synthetic users and listening events",
@@ -281,7 +288,7 @@ with DAG(
         cur.close()
         conn.close()
         print(f"Successfully saved {len(recs)} recommendations for user {user_id}")
-        
+
     # -------------------------------
     # AIRFLOW VALIDATION TASKS
     # -------------------------------
@@ -298,28 +305,25 @@ with DAG(
 
         return "OK"
 
-
     @task()
     def validate_generated_recommendations(rec_data: dict):
         """Validate that the generated recommendations are correct."""
         validate_recommendations_df(rec_data)
         return rec_data
 
-    
-
     # Define the task pipeline
     setup = create_recommendations_table()
-    
+
     # Validate model pickle BEFORE inference runs
     validate_model = validate_model_pickle()
-    
+
     user_data = fetch_random_user_and_history()
 
     # Generate recommendations depends on both user data and the model file
     recs = generate_recommendations(user_context=user_data)
-    
+
     # Validate recommendations BEFORE saving to DB
-    validated_recs = validate_generated_recommendations(recs)   
+    validated_recs = validate_generated_recommendations(recs)
 
     # Save results depends on generation
     save = save_recommendations(recs)
@@ -327,4 +331,3 @@ with DAG(
     # Define dependency structure
     # setup >> user_data >> recs >> save
     setup >> validate_model >> user_data >> recs >> validated_recs >> save
-

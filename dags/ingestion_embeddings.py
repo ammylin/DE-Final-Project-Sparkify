@@ -39,6 +39,7 @@ default_args = {
 # VALIDATION HELPERS (PANDAS)
 # -------------------------------
 
+
 def validate_tracks_df(df: pd.DataFrame):
     required = ["track_id", "track_name", "track_genre"]
     missing = [c for c in required if c not in df.columns]
@@ -49,6 +50,7 @@ def validate_tracks_df(df: pd.DataFrame):
     if df["track_id"].duplicated().any():
         raise ValueError("Duplicate track_id values in tracks table.")
     print("Tracks table validation passed.")
+
 
 def validate_users_df(df: pd.DataFrame):
     required = ["user_id", "age", "country"]
@@ -61,6 +63,7 @@ def validate_users_df(df: pd.DataFrame):
         raise ValueError("Duplicate user_id values in users table.")
     print("Users table validation passed.")
 
+
 def validate_events_df(df: pd.DataFrame):
     required = ["event_id", "user_id", "track_id", "timestamp"]
     missing = [c for c in required if c not in df.columns]
@@ -72,6 +75,7 @@ def validate_events_df(df: pd.DataFrame):
         raise ValueError("Duplicate event_id values in listening_events table.")
     print("Listening events validation passed.")
 
+
 def validate_track_embeddings(df: pd.DataFrame):
     if df.empty:
         raise ValueError(" No tracks found for embedding validation.")
@@ -79,13 +83,13 @@ def validate_track_embeddings(df: pd.DataFrame):
         raise ValueError("Some track embeddings are NULL.")
     print(" Track embeddings validation passed.")
 
+
 def validate_user_embeddings(df: pd.DataFrame):
     if df.empty:
         raise ValueError("No users found for embedding validation.")
     if df["user_embedding"].isnull().any():
         raise ValueError("Some user embeddings are NULL.")
     print("User embeddings validation passed.")
-
 
 
 with DAG(
@@ -829,8 +833,9 @@ with DAG(
 
         print(f"Model embedding artifact saved at: {pickle_path}")
         return pickle_path
-    
+
         # -------------------------------
+
     # VALIDATION TASKS (AIRFLOW)
     # -------------------------------
 
@@ -875,11 +880,6 @@ with DAG(
         conn.close()
         validate_user_embeddings(df)
 
-    
-
-    
-
-
     # Define tasks
     create_tables = create_postgres_tables()
     verify_tables = verify_postgres_tables()
@@ -891,16 +891,15 @@ with DAG(
     create_users_genre_table = create_user_genre_table()
 
     compute_track_embeds = compute_track_embeddings()
-    
+
     compute_user_embeds = compute_user_embeddings()
     build_and_save_pickle = build_and_save_model_pickle()
-    
+
     validate_tracks = validate_tracks_table()
     validate_users = validate_users_table()
     validate_events = validate_listening_events_table()
     validate_track_embeds = validate_track_embeddings_task()
     validate_user_embeds = validate_user_embeddings_task()
-
 
     # Groups
     prep_layer = [add_embedding_cols, create_tracks_primary_genre_table]
@@ -910,13 +909,14 @@ with DAG(
     # Workflow orchestration
     # Setup chain
     setup_chain = (
-    create_tables 
-    >> verify_tables 
-    >> create_tracks_table 
-    >> validate_tracks
-    >> create_users_table 
-    >> validate_users
-)
+        create_tables
+        >> verify_tables
+        >> create_tracks_table
+        >> validate_tracks
+        # >> validate_events
+        >> create_users_table
+        >> validate_users
+    )
 
     # Setup -> Prep (Task >> List is okay)
     setup_chain >> prep_layer
@@ -934,9 +934,9 @@ with DAG(
 
     # Embedding Sequence (Task >> Task >> Task)
     (
-    compute_track_embeds 
-    >> validate_track_embeds
-    >> compute_user_embeds
-    >> validate_user_embeds
-    >> build_and_save_pickle
-)
+        compute_track_embeds
+        >> validate_track_embeds
+        >> compute_user_embeds
+        >> validate_user_embeds
+        >> build_and_save_pickle
+    )
