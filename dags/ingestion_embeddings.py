@@ -35,10 +35,7 @@ default_args = {
     "retry_delay": timedelta(minutes=2),
 }
 
-# -------------------------------
 # VALIDATION HELPERS (PANDAS)
-# -------------------------------
-
 
 def validate_tracks_df(df: pd.DataFrame):
     required = ["track_id", "track_name", "track_genre"]

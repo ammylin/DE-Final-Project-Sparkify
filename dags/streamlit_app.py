@@ -31,7 +31,6 @@ def load_recommendations():
             A.track_name,
             B.first_genre AS track_genre,
             A.primary_artist,
-            A.score,
             A.timestamp
         FROM music_analytics.recommendations     A
         JOIN music_analytics.track_primary_genre B
