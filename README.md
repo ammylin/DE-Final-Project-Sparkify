@@ -457,7 +457,8 @@ pip install -r requirements-streamlit.txt
 
 ### **2. Run the Dashboard**
 ```bash
-streamlit run streamlit_app.py
+cd .devcontainer
+docker compose up -d streamlit
 ```
 
 ### **3. Access the UI**
