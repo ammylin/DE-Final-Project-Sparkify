@@ -37,6 +37,7 @@ default_args = {
 
 # VALIDATION HELPERS (PANDAS)
 
+
 def validate_tracks_df(df: pd.DataFrame):
     required = ["track_id", "track_name", "track_genre"]
     missing = [c for c in required if c not in df.columns]
@@ -910,7 +911,6 @@ with DAG(
         >> verify_tables
         >> create_tracks_table
         >> validate_tracks
-        # >> validate_events
         >> create_users_table
         >> validate_users
     )
@@ -922,6 +922,7 @@ with DAG(
     for p_task in prep_layer:
         for f_task in feature_group:
             p_task >> f_task
+    create_events_table >> validate_events
 
     # Feature -> Embedding (List >> List = Loop required)
     # NOTE: While we defined embedding_computation_group, we actually need sequentiality here
