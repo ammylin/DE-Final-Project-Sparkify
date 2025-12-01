@@ -123,7 +123,6 @@ This inference layer is used directly by the dashboard and can be triggered prog
 - Real-time query to the inference script.  
 - Table of:
   - recommended tracks  
-  - similarity scores  
   - relevant metadata  
 - Auto-refresh for live updates.  
 - Uses Postgres + dotenv for environment configuration.
