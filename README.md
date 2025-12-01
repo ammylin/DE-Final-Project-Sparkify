@@ -473,4 +473,15 @@ Streamlit will:
 
 ---
 
+## Team Roles
+
+Our project leveraged each team member's expertise to build a complete music recommendation pipeline while demonstrating key data engineering principles.
+
+| Team Member | Role | Responsibilities |
+|-------------|------|-----------------|
+| **Jordan Andrew** | **Data Engineer & Model Specialist** | Designed and built the recommendation model from the ground up; documentation and README; explaining data sources; testing and validation; cleaning the repository; overseeing CI/CD setup; unit and integration tests; **model improvements** (e.g., switching from single-song recommendations to playlist-based recommendations). |
+| **Aesha Gandhi** | **Data Analyst & Pipeline Tester** | Exploratory Data Analysis (EDA) using Polars; data cleaning and transformation; orchestrating DAG #1 & #2; testing pipeline functionality; dashboard support; CI/CD assistance. |
+| **Ammy Lin** | **Synthetic Data Engineer** | Generating synthetic users and listening events; integrating synthetic datasets with real track metadata; supporting pipeline orchestration; assisting with dashboard development; planning for future integration of user data into the recommendation pipeline. |
+| **Tonantzin Real Rojas** | **Pipeline & Orchestration Lead** | Designing and managing Airflow DAGs; orchestrating data
+
 
