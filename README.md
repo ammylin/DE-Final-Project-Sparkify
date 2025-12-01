@@ -484,4 +484,43 @@ Our project leveraged each team member's expertise to build a complete music rec
 | **Ammy Lin** | **Synthetic Data Engineer** | Generating synthetic users and listening events; integrating synthetic datasets with real track metadata; supporting pipeline orchestration of DAGS #1 and #2; assisting with dashboard development; planning for future integration of user data into the recommendation pipeline. |
 | **Tonantzin Real Rojas** | **Pipeline & Orchestration Lead** | Designing and managing Airflow DAGs; orchestrating data ingestion, transformation, and model training pipelines; implementing the Streamlit dashboard; overall pipeline oversight. |
 
+## Data Engineering Principles Demonstrated
+
+Our project was designed to showcase fundamental data engineering concepts through a complete music recommendation pipeline. Below, we reflect on each principle with specific examples:
+
+### **Scalability**
+- The pipeline can handle a growing number of tracks (~114k) and synthetic users (2,000+) without modification.  
+- Airflow DAGs allow parallel execution of tasks, enabling scaling to larger datasets or additional feature computation.
+
+### **Modularity**
+- Each component of the project is independent: data ingestion, cleaning, synthetic data generation, model training, and inference are separate modules.  
+- DAGs are structured so tasks like table creation, data validation, or model training can be reused or replaced without affecting other components.
+
+### **Reusability**
+- Functions for generating synthetic users and listening events can be reused for new datasets or additional experiments.  
+- The recommendation model is written to accommodate new users, tracks, or audio features with minimal changes.
+
+### **Observability**
+- Airflow provides monitoring of DAG execution, including task status, runtime, and logs.  
+- Streamlit dashboard allows real-time inspection of recommendations and pipeline outputs.  
+- Unit and integration tests track data quality and pipeline correctness.
+
+### **Data Governance**
+- PostgreSQL schema enforces structured storage and type safety for tracks, users, and events.  
+- Data validation scripts ensure required columns exist and no missing primary keys.  
+- Clear separation between raw, transformed, and synthetic data maintains data lineage.
+
+### **Reliability**
+- Automated tests (unit, integration, and end-to-end) verify that ingestion, transformation, and model outputs are consistent.  
+- DAG dependencies prevent downstream tasks from running on incomplete or invalid data.
+
+### **Efficiency**
+- Data transformations use Polars for fast, memory-efficient operations on large CSVs.  
+- DAG parallelism and vectorized model operations reduce processing time.
+
+### **Security**
+- Access to PostgreSQL and sensitive scripts is controlled locally and via environment variables.  
+- Data separation between raw Kaggle tracks and synthetic user data prevents accidental exposure of real data.
+
+
 
