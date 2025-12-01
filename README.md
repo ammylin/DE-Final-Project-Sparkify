@@ -16,6 +16,23 @@ This project builds a production-style music recommendation pipeline that combin
 
 The goal is to simulate the infrastructure of a real music analytics platform (“Sparkify”) where new listening activity and track data continuously flow through an ETL + ML pipeline, producing fresh recommendations for every user.
 
+## Dataset Background
+
+The song metadata for this project is based on the public Spotify Tracks Dataset found on Kaggle: https://www.kaggle.com/datasets/maharshipandya/-spotify-tracks-dataset. This dataset provides a large collection of tracks along with rich audio features, making it well-suited for building embeddings and powering a recommendation pipeline. This dataset contains about 114,000 rows, where each row represents a single song.
+
+### Dataset Contents
+
+Each row represents one Spotify track, including:
+- Track identifiers (id number)
+- Artists
+- Album name 
+- Genre
+- Popularity scores
+- Audio features (danceability, energy, instrumentalness, etc)
+- Timing and rhythm information (tempo, time signature, duration)
+
+These features allow us to build realistic track embeddings and support downstream recommendation logic.
+
 ## Introduction / Exploratory Data Analysis (EDA)  
 EDA notebooks (`00_eda.ipynb` and `03_eda.ipynb`) explore the structure and quality of the raw Kaggle track dataset.
 
