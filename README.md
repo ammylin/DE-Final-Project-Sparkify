@@ -165,7 +165,7 @@ The Streamlit dashboard provides an interactive interface for exploring recommen
 
 ---
 ## Global Dashboard View 
-![Global Dashboard](gifs/scroll_all.gif)
+![Global Dashboard](gifs/scroll_all2.gif)
 
 ## Per User Dashboard View
 ![Dashboard Per User](gifs/user_scroll.gif)
@@ -226,7 +226,7 @@ This helps provide context for why certain tracks appear frequently in recommend
 
 ## Full Recommendations Table
 
-![Recommendations Table](gifs/change.gif)
+![Recommendations Table](gifs/change2.gif)
 
 The dashboard includes a **Recommendations Table** that displays the results of the Airflow `inference` DAG.  
 This table is a direct view of the `user_recommendations` table stored in Postgres and refreshed automatically.
