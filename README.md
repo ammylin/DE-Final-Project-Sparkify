@@ -315,6 +315,7 @@ These checks protect the *live* pipeline from corrupted tables, malformed embedd
 This hybrid approach ensures both **functional correctness** and **pipeline reliability** without the overhead of executing full DAGs in CI.
 
 # GitHub Actions CI/CD Workflow
+[![Sparkify CI/CD Tests](https://github.com/ammylin/DE-Final-Project-Sparkify/actions/workflows/ci-cd-tests.yml/badge.svg)](https://github.com/ammylin/DE-Final-Project-Sparkify/actions/workflows/ci-cd-tests.yml)
 
 The project uses **GitHub Actions** to automatically run tests, linting, and security checks on every push or pull request to `main` or `develop`. The workflow ensures stability, code quality, and early detection of issues.
 
