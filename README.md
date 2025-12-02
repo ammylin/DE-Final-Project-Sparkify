@@ -281,7 +281,18 @@ These tests **do not call Airflow tasks**. Instead, they simulate core pipeline 
 - recommendation logic (cosine similarity, ranking, filtering listened tracks)  
 - inference logic (pickle loading, embedding math, missing-user edge cases)  
 - boundary conditions and failure cases (empty histories, malformed embeddings)  
-- shared fixtures for consistent, deterministic test data  
+- shared fixtures for consistent, deterministic test data
+
+### Testing Locally:
+```
+# run full suite
+pytest tests/ -v
+```
+
+Convenience
+-----------
+- `./run_tests.sh` — helper script for common runs (unit/integration/coverage/lint)
+- `Makefile` — targets `make test`, `make test-unit`, `make coverage`, `make lint`, etc.
 
 ---
 
