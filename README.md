@@ -64,56 +64,88 @@ The cleaning notebook (`02_clean_data.ipynb`) transforms the raw dataset into a 
 
 The cleaned dataset becomes the starting point for downstream Airflow DAGs.
 
-## DAG #1 — Ingestion & Embeddings  
-The first Airflow DAG (`ingestion_embeddings.py`) is responsible for refreshing model inputs and outputs on a daily schedule.
+## Airflow DAGs Overview
 
-### **DAG Responsibilities**
-1. **Load raw tables**  
-   - Pull `tracks`, `users`, and `listening_events` from Postgres.
+This project uses two Airflow DAGs to power the full recommendation system pipeline:  
+1. **`ingestion_embeddings`** – builds all backend data + embeddings  
+2. **`inference`** – generates real-time recommendations
 
-2. **Build Track Embedding Matrix**  
-   - Uses `build_track_matrix()` from `recommendation_model.py`.  
-   - Standardizes feature columns.  
-   - Saves an (n_tracks × n_features) embedding matrix back to Postgres.
+Both DAGs run inside the Airflow environment and share the same Postgres database + model artifacts.
 
-3. **Generate User Vectors**  
-   - For each user, aggregate their listening history.  
-   - Convert to a numerical vector using `generate_user_vector()`.
+---
 
-4. **Compute User Recommendations**  
-   - Compute cosine similarity between the user vector and all track embeddings.  
-   - Exclude previously listened tracks.  
-   - Write Top-N recommendations to the `user_recommendations` table.
+### 1. `ingestion_embeddings` DAG  
+#### *Offline Data Pipeline — Build the Warehouse + Embeddings + Model Artifact*
 
-5. **Validation**  
-   - Validate schema integrity.  
-   - Ensure no null or duplicate IDs.  
-   - Confirm embedding shapes.  
-   - Verify that every user receives recommendations.
+This DAG is responsible for **building the entire analytics foundation** of the project.  
+It loads and validates the raw track dataset, creates synthetic users and listening events, computes embeddings, and produces the model artifact used by the inference DAG.
 
-### **Output Tables**
-- `track_embeddings`  
-- `user_vectors`  
-- `user_recommendations`
+#### Overview of DAG
+- **Creates all required Postgres tables** for tracks, users, listening events, and genres.  
+- **Ingests the cleaned Spotify track dataset** into the warehouse.  
+- **Generates synthetic users** with realistic music preferences.  
+- **Simulates listening behavior** to create a rich event history.  
+- **Computes embeddings**:
+  - Track embeddings (using PCA-based feature transformations)
+  - User embeddings (genre-weighted vectors)  
+- **Builds and saves a model artifact** that contains:
+  - The track embedding matrix  
+  - User embedding vectors  
+  - Track metadata  
+- **Validates each step** (data quality checks, schema checks, embedding checks).  
 
-This DAG is the core of the ML pipeline.
-![output](images/successful_dag1.png)
-![output](images/inference-graph.png)
+#### Purpose of DAG
+This pipeline creates **everything the recommendation engine needs**:
+- A structured database  
+- High-quality feature representations  
+- Embeddings for vector similarity search  
+- A reusable model file that downstream pipelines can load instantly  
 
-## DAG #2 — Inference  
-The second DAG or script (`inference.py`) supports **on-demand recommendations**.
+This DAG exists as the *data backbone* of the project.
 
-### **Functions**
-- Loads the latest track embeddings and user listening events.  
-- Accepts a specific `user_id`.  
-- Runs:
-  - vector construction  
-  - similarity scoring  
-  - Top-N ranking  
-- Returns recommendations in a JSON-friendly structure.
+![output](images/successful_dag1.jpg)
 
-This inference layer is used directly by the dashboard and can be triggered programmatically.
-![output](images/successful_dag2.png)
+---
+
+### 2. `inference` DAG  
+#### *Online Recommendations — Generate Top-K Tracks Continuously*
+
+This DAG uses the artifacts created by `ingestion_embeddings` to produce real-time recommendations for users.
+
+#### Overview of DAG
+- **Creates a recommendations table** in Postgres if it doesn’t exist.  
+- **Loads the model artifact** saved by the ingestion DAG.  
+- **Selects a user** and retrieves their listening history.  
+- **Computes recommendation scores** using cosine similarity between:
+  - the user’s embedding  
+  - all track embeddings  
+- **Filters out tracks the user already listened to**.  
+- **Stores the top-K recommendations** in the warehouse.  
+- Runs **every minute**, continually generating new recommendations.
+
+#### Purpose of DAG
+This pipeline actively produces recommendations using the latest user and track embeddings.  
+It simulates how a real recommendation engine would operate in production:  
+- lightweight  
+- fast  
+- scheduled  
+- always using the most recent embeddings and data  
+
+![output](images/successful_dag2.jpg)
+
+
+---
+
+###  How The 2 DAGS Work Together
+
+| DAG | Role | Output → Input |
+|-----|------|----------------|
+| **`ingestion_embeddings`** | Offline ETL + modeling | Produces the model artifact + embeddings |
+| **`inference`** | Online recommendation engine | Loads the artifact + embeddings to generate recs |
+
+Together, they create a full end-to-end system:
+
+**Data → Features → Embeddings → Model → Recommendations**
 
 ## Dashboard (Streamlit)  
 `streamlit_app.py` provides an interactive front-end to explore recommendations.
