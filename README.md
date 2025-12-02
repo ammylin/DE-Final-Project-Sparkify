@@ -517,38 +517,49 @@ Streamlit will:
 Our project was designed to showcase fundamental data engineering concepts through a complete music recommendation pipeline. Below, we reflect on each principle with specific examples:
 
 ### **Scalability**
-- The pipeline can handle a growing number of tracks (~114k) and synthetic users (2,000+) without modification.  
-- Airflow DAGs allow parallel execution of tasks, enabling scaling to larger datasets or additional feature computation.
+Scalability refers to the ability of a data system to handle growing amounts of data, users, or workload without degrading performance. We demonstrate this through: 
+- Vectorization Over Loops: The most significant scalability feature is replacing row-by-row scoring with matrix multiplication. In DAG #1, we pre-compute a `track_matrix` (N x 64). In DAG #2, we calculate similarity for all N tracks in a single `np.dot` operation, which allows the system to scale from 2,000 tracks to 200,000 tracks with minimal latency increase.
+- Decoupled Architecture: Splitting Training (DAG #1) from Inference (DAG #2) allows each to scale on its own. As the user base grows, the lightweight inference workflow can run more often without requiring the resource-intensive training pipeline to run again.
+- Batch Processing: Although the current dataset is small (~20 MB), using a batch ETL approach sets up a scalable foundation. The pipeline processes data in bulk at scheduled intervals, which keeps the architecture simple today while still allowing it to handle much larger datasets in the future without major redesign. As data volume grows, the same batch workflow can scale by increasing compute resources, parallelizing tasks, or distributing processing, which demonstrates that the design can grow with the needs of the system. 
 
 ### **Modularity**
-- Each component of the project is independent: data ingestion, cleaning, synthetic data generation, model training, and inference are separate modules.  
-- DAGs are structured so tasks like table creation, data validation, or model training can be reused or replaced without affecting other components.
+Modularity refers to designing systems as independent, interchangeable components rather than one large, tangled system. This is seen through: 
+- Separation of Responsibilities: The architecture isolates major functions into dedicated layers. Airflow manages orchestration and task dependencies, `recommendation_model.py` contains all mathematical operations (PCA, centroid generation, similarity logic), PostgreSQL handles persistent storage, and Streamlit provides the user interface. Each layer can evolve independently without impacting the others. 
+- Isolated Computation Logic: All model-related logic resides in a standalone Python module that is completely independent of Airflow. This separation ensures the core algorithms can be tested, reused, or replaced without modifying the pipeline itself. 
+- Component-Level Boundaries: The system’s storage, processing, orchestration, and presentation layers remain decoupled, allowing teams to adjust or scale each component without ripple effects across the rest of the architecture. 
+- Fine-Grained Tasks: Each DAG is composed of narrowly scoped tasks (e.g., `create_tables`, `generate_users`, `compute_track_embeddings`). If an error occurs in a single step, Airflow can retry or repair just that task rather than rerunning the entire pipeline, reinforcing both modularity and maintainability.
 
 ### **Reusability**
-- Functions for generating synthetic users and listening events can be reused for new datasets or additional experiments.  
-- The recommendation model is written to accommodate new users, tracks, or audio features with minimal changes.
+Reusability means building components so that they can be used across multiple pipelines, teams, or projects. We implement this through: 
+- Shared Model Code: The `recommendation_model.py` module is imported by DAG #1. If we wanted to build a real-time API or a different pipeline, we could import `build_track_matrix` and `generate_user_vector` without rewriting any code. 
+- Generalized Functions: The DAGs use a generalized `get_connection()` function and standard SQL hooks, making it easy to point the pipeline to a different database (e.g., staging vs. production) simply by changing environment variables. 
+- Dynamic Anchors: The helper function `get_genre_anchor` works for any string input. It does not rely on a hardcoded list of genres, meaning it can be reused for any dataset with categorical tags (e.g., movie genres, book topics) without modification.
 
 ### **Observability**
-- Airflow provides monitoring of DAG execution, including task status, runtime, and logs.  
-- Streamlit dashboard allows real-time inspection of recommendations and pipeline outputs.  
-- Unit and integration tests track data quality and pipeline correctness.
+Observability is defined as having enough visibility to understand the internal state of the data systems. Here, we show this through: 
+- Airflow UI: The use of Airflow provides built-in observability, because we can visually monitor DAG runs, task durations, and success/failure rates.
+- Explicit Logging: Our tasks include print() statements (e.g., `print(f"Generated {len(recommendations)} recommendations")`) , which appear in the Airflow task logs. This allows for immediate debugging of data volume issues.
+- Data Validation Task: Tasks such as `verify_postgres_tables` serve as a dedicated observability step, ensuring the infrastructure is healthy before the pipeline attempts to process data.
 
 ### **Data Governance**
-- PostgreSQL schema enforces structured storage and type safety for tracks, users, and events.  
-- Data validation scripts ensure required columns exist and no missing primary keys.  
-- Clear separation between raw, transformed, and synthetic data maintains data lineage.
+Data governance refers to policies and processes that ensure data is managed properly, safely, and consistently across the organization. Our project demonstrates this through: 
+- Schema Enforcement: By relying on strictly defined SQL schemas, including primary and foreign keys that explicitly link tables together,  relationships such as `FOREIGN KEY (user_id)` ensure that every record in downstream tables corresponds to a valid user. This prevents orphaned or inconsistent data from entering the model and guarantees that all recommendations are generated from structurally valid inputs.
+- Standardized, Clean Data Through Normalization: Before training, we normalize raw JSON into a structured relational format using the `create_track_primary_genre_table` ETL step. By cleaning and consolidating genre information into a single authoritative table, we establish a consistent “source of truth” that the model can rely on. This reduces ambiguity, eliminates duplicated or conflicting attributes, and ensures that all subsequent computations operate on well-governed data.
+- Versioned, Immutable Model Artifacts: Each trained version of our model is stored as an immutable, versioned `.pkl` file. This creates a clear lineage, as we can always trace which dataset and which code snapshot produced a particular set of recommendations. This traceability is a core requirement of data governance, since it ensures reproducibility, supports audits, and allows us to roll back or compare versions when validating model behavior.
 
 ### **Reliability**
-- Automated tests (unit, integration, and end-to-end) verify that ingestion, transformation, and model outputs are consistent.  
-- DAG dependencies prevent downstream tasks from running on incomplete or invalid data.
+Reliability means that the system behaves predictably and consistently, even when components fail. Our project demonstrates reliability in the following ways: 
+- Idempotency: Many of our SQL tasks use `IF NOT EXISTS` or `ON CONFLICT DO NOTHING` to ensure that if the DAG crashes and restarts, it will not crash due to duplicate key errors or trying to create tables that already exist.
+- Dependency Management: We implemented strict sequential dependencies (e.g., `compute_track_embeds >> compute_user_embeds`). This guarantees that user vectors are never calculated against empty or stale track centroids, preventing mathematical errors.
+- Fallback Mechanisms: In our Streamlit dashboard and inference DAG, we have `try/except` blocks and `if os.path.exists()` checks to handle missing files or database connection failures gracefully without crashing the entire application.
 
 ### **Efficiency**
-- Data transformations use Polars for fast, memory-efficient operations on large CSVs.  
-- DAG parallelism and vectorized model operations reduce processing time.
+Efficiency is defined as using compute, storage, and resources as cost-effectively as possible while maintaining performance. This is seen through: 
+- Compute-Storage Separation: We perform the heavy calculations (PCA, Centroids) once during the "Training" phase and save the result. The "Inference" phase is lightweight, reading pre-computed matrices; this saves massive amounts of CPU cycles compared to recalculating embeddings for every user request.
+- Vector Database: Utilizing `pgvector` (via the `VECTOR` type) prepares our system for efficient similarity search. While our current inference loads data into memory (which is faster for small-to-medium datasets), our architecture is ready to switch to in-database vector indexing (`IVFFlat` or `HNSW`) if the data grows too large for memory. 
 
 ### **Security**
-- Access to PostgreSQL and sensitive scripts is controlled locally and via environment variables.  
-- Data separation between raw Kaggle tracks and synthetic user data prevents accidental exposure of real data.
-
-
-
+Security refers to protecting data and systems from unauthorized access, breaches, or misuse. We demonstrate this through: 
+- Environment Variables: We used `dotenv` and `os.getenv` to manage sensitive credentials (`DB_PASSWORD`, `DB_USER`). Hardcoding passwords is a major security risk; therefore, our approach avoids this.
+- Connection Abstraction: The `get_connection()` function centralizes access logic. If we need to rotate passwords or change authentication methods (e.g., to IAM auth), we only need to change it in one place.
+- Containerization: Running in Docker containers isolates our application services (Airflow, Postgres) from the host machine and from each other, limiting the blast radius if one service is compromised.
