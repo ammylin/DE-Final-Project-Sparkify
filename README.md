@@ -1,5 +1,3 @@
-# DE-Final-Project-Sparkify
-
 # Sparkify Music Recommendation Pipeline  
 A full end-to-end data engineering + machine learning system that ingests track metadata, generates synthetic user listening activity, builds a content-based recommendation model, runs scheduled Airflow DAGs to update embeddings and recommendations, and serves results to a Streamlit dashboard.
 
@@ -54,7 +52,7 @@ The EDA step establishes which features are reliable inputs to the recommendatio
 ## Data Cleaning  
 The cleaning notebook (`02_clean_data.ipynb`) transforms the raw dataset into a modeling-ready format.
 
-**Key cleaning steps:**
+**Key Cleaning Steps:**
 - Dropping unused or redundant columns.  
 - Filling or removing missing numeric feature values.  
 - Ensuring each track has a unique `track_id`.  
@@ -136,7 +134,7 @@ It simulates how a real recommendation engine would operate in production:
 
 ---
 
-###  How The 2 DAGS Work Together
+###  How the Two DAGs Work Together
 
 | DAG | Role | Output → Input |
 |-----|------|----------------|
@@ -167,7 +165,7 @@ The Streamlit dashboard provides an interactive interface for exploring recommen
 
 ---
 ## Global Dashboard View 
-<img src="gifs/scroll_all.gif" alt="Dashboard Global" width="800" />
+![Global Dashboard](gifs/scroll_all.gif)
 
 ## Per User Dashboard View
 ![Dashboard Per User](gifs/user_scroll.gif)
@@ -228,7 +226,7 @@ This helps provide context for why certain tracks appear frequently in recommend
 
 ## Full Recommendations Table
 
-<img src="gifs/change.gif" alt="Recommendations Table" width="800" />
+![Recommendations Table](gifs/change.gif)
 
 The dashboard includes a **Recommendations Table** that displays the results of the Airflow `inference` DAG.  
 This table is a direct view of the `user_recommendations` table stored in Postgres and refreshed automatically.
