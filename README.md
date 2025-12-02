@@ -470,16 +470,14 @@ Streamlit will:
 
 ---
 
-## Team Roles
+## Team Roles & Responsibilities
 
-Our project leveraged each team member's expertise to build a complete music recommendation pipeline while demonstrating key data engineering principles.
-
-| Team Member | Role | Responsibilities |
-|-------------|------|-----------------|
-| **Jordan Andrew** | **Software Engineer & Model Specialist** | Designed and built the recommendation model from the ground up; documentation and README; explaining data sources; testing and validation; cleaning the repository; model improvements, such as switching from single-song recommendations to playlist-based recommendations. |
-| **Aesha Gandhi** | **Data Analyst & Pipeline Tester** | Exploratory Data Analysis (EDA) using Polars; data cleaning and transformation; documentation and README; testing pipeline functionality; dashboard support; CI/CD assistance. |
-| **Ammy Lin** | **Synthetic Data Engineer** | Generating synthetic users and listening events; integrating synthetic datasets with real track metadata; supporting pipeline orchestration of DAGS #1 and #2; assisting with dashboard development; planning for future integration of user data into the recommendation pipeline. |
-| **Tonantzin Real Rojas** | **Pipeline & Orchestration Lead** | Designing and managing Airflow DAGs; orchestrating data ingestion, transformation, and model training pipelines; implementing the Streamlit dashboard; overall pipeline oversight. |
+| **Team Member** | **Key Responsibilities** |
+|------------------|---------------------------|
+| **Jordan** | Documentation and README<br>Exploratory Data Analysis (EDA)<br>Set up a reproducible development environment<br>Designed the recommendation model |
+| **Aesha** | Documentation and README<br>Data cleaning and transformation<br>Pipeline testing<br>CI/CD testing |
+| **Ammy** | Exploratory Data Analysis (EDA)<br>Designed and managed Airflow DAGs<br>Implemented Streamlit dashboard<br>Designed and built the recommendation model<br>Handled communications and organized meetings |
+| **Tonantzin** | Exploratory Data Analysis (EDA)<br>Designed and managed Airflow DAGs<br>Implemented Streamlit dashboard<br>Orchestrated data ingestion<br>Provided overall pipeline insight|
 
 ## Data Engineering Principles Demonstrated
 
