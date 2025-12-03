@@ -1,4 +1,4 @@
-# Sparkify Music Recommendation Pipeline  
+# [Sparkify Music Recommendation Pipeline](https://www.youtube.com/watch?v=6mdhQYfkFKo)
 A full end-to-end data engineering + machine learning system that ingests track metadata, generates synthetic user listening activity, builds a content-based recommendation model, runs scheduled Airflow DAGs to update embeddings and recommendations, and serves results to a Streamlit dashboard.
 
 ## Project Overview  
