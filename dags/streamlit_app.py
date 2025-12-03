@@ -7,8 +7,8 @@ from streamlit_autorefresh import st_autorefresh
 
 load_dotenv()
 
-# Auto-refresh every 2 minutes
-st_autorefresh(interval=120_000, key="auto_refresh")
+# Auto-refresh every minute
+st_autorefresh(interval=60_000, key="auto_refresh")
 
 
 def get_connection():
